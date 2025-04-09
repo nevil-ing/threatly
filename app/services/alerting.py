@@ -2,7 +2,7 @@
 import logging
 from sqlalchemy.orm import Session
 
-from app import models, schemas # Import models and schemas
+from app import models, schemas 
 from app.core.config import settings
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
@@ -12,8 +12,16 @@ def trigger_alert(log_entry: models.Log, db: Session):
     Triggers an alert based on an anomalous log entry.
     """
     alert_description = f"Anomaly detected in log ID {log_entry.id}. Source: {log_entry.source_type}, IP: {log_entry.source_ip}, Score: {log_entry.anomaly_score:.2f}"
-    alert_severity = "High" # Placeholder severity - you might determine this based on the score
-
+    score = log_entry.anomaly_score
+    for i in range(score):
+        if score <= 3:
+            alert_severity = "Low"
+        elif score >= 4 and score <= 6:
+            alert_severity = "Medium"
+        else:
+            alert_severity = "High"        
+    
+  #
     logging.warning(f"ALERT TRIGGERED: {alert_description}")
 
     # --- Step 1: Store Alert in Database---
@@ -32,7 +40,7 @@ def trigger_alert(log_entry: models.Log, db: Session):
         logging.error(f"Failed to store alert in database: {e}")
         db.rollback() # Rollback if storing alert fails
 
-    # --- Step 2: Implement Other Alerting Mechanisms (Add later) ---
+    # --- send alert notifications---
     # Example: Send email
     # if settings.ALERTING_EMAIL_TO:
     #     send_email_alert(subject=f"Sentinel XDR Alert: {alert_severity}",
