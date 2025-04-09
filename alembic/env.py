@@ -2,6 +2,9 @@ from logging.config import fileConfig
 
 from sqlalchemy import engine_from_config
 from sqlalchemy import pool
+from app.core.config import settings  
+
+from sqlalchemy import create_engine
 
 from alembic import context
 from app.core.database import Base 
@@ -63,13 +66,12 @@ def run_migrations_online() -> None:
     """Run migrations in 'online' mode.
 
     In this scenario we need to create an Engine
-    and associate a connection with the context.
+    and associate a connection with the context. 
 
     """
-    connectable = engine_from_config(
-        config.get_section(config.config_ini_section, {}),
-        prefix="sqlalchemy.",
-        poolclass=pool.NullPool,
+    connectable = create_engine(
+    settings.DATABASE_URL,
+    poolclass=pool.NullPool,
     )
 
     with connectable.connect() as connection:
