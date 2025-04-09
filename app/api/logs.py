@@ -8,7 +8,7 @@ from app.schemas.log import Log, LogCreate, LogUpdate
 from app.services.log_service import create_log, delete_log, update_log, get_log, get_logs
 from app.core.database import get_db
 
-router = APIRouter() # Create an APIRouter instance
+router = APIRouter() 
 #add logs
 @router.post("/logs/", response_model=Log, status_code=201) # Use Log schema for response, 201 Created
 def create_new_log(log: LogCreate, db: Session = Depends(get_db)):
