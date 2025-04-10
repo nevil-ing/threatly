@@ -4,7 +4,7 @@ from pydantic import BaseModel
 #user schema
 
 class UserBase(BaseModel):
-    username:  str
+    username: str
     email: str
     full_name: str
     is_active: Optional[bool]= True
