@@ -1,5 +1,5 @@
 from fastapi import FastAPI
-from app.api import logs, alerts
+from app.api import logs, alerts, auth
 import uvicorn 
 from app.core.database import engine, Base 
 from app.middleware.logging_middleware import log_requests
@@ -9,9 +9,12 @@ def init_db():
     
 app = FastAPI(title="Sentinel XDR Backend API")
 app.middleware("http")(log_requests)
-app.include_router(logs.router, prefix="/api/v1")
-app.include_router(alerts.router, prefix="/api/v1/")
 
+#include routes
+app.include_router(auth.router, prefix="/api/v1/auth", tags=["Authentication"])
+app.include_router(logs.router, prefix="/api/v1", tags=["Logs"])
+app.include_router(alerts.router, prefix="/api/v1", tags=["Alerts"])
+t
 
 
 

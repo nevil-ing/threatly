@@ -4,14 +4,20 @@ from app.core.database import get_db
 from app.schemas.alert import  Alert
 from app.services.alerting import trigger_alert
 from typing import List
-
+from app.core.security import get_current_active_user
+from app.models.user import User
 
 router = APIRouter()
 
 
 # get alerts list
-@router.get("/alerts/", response_model=Alert)
-def get_alert(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+@router.get("/alerts/", response_model=List[Alert])
+def get_alert(
+    skip: int = 0,
+    limit: int = 100, 
+    db: Session = Depends(get_db),
+    
+    ):
     """
     Retrieve a list of alerts.
     
@@ -22,7 +28,11 @@ def get_alert(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
 
 # get alert by id
 @router.get("/alerts/{alert_id}", response_model=Alert)
-def get_alert_by_id(alert_id: int,db: Session = Depends(get_db)):
+def get_alert_by_id(
+    alert_id: int,
+    db: Session = Depends(get_db),
+    current_user: User= Depends(get_current_active_user)
+    ):
     """
     Retrieve an alert by ID.
     """
