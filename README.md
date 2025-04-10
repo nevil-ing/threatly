@@ -4,9 +4,9 @@
 
 ### Prerequisites
 - Python 3.8+
-- Docker (optional, for containerized deployment)
-- PostgreSQL (or other supported database)
-- Redis (for caching/queuing if used)
+- Docker 
+- PostgreSQL 
+- Redis 
 
 ### Installation
 1. Clone the repository:
