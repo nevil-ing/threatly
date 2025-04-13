@@ -5,8 +5,8 @@ from typing import List
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
-
-from app import schemas, models, services 
+from app.services import user_service
+from app import schemas, models
 from app.core.database import get_db
 from app.core.security import create_access_token, verify_password, ACCESS_TOKEN_EXPIRE_MINUTES, get_current_active_user
 
@@ -18,7 +18,7 @@ async def login_for_access_token(
     db: Session = Depends(get_db)
 ):
     """Handles user login and returns a JWT access token."""
-    user = services.user_service.get_user_by_username(db, username=form_data.username)
+    user = user_service.get_user_by_username(db, username=form_data.username)
     if not user or not verify_password(form_data.password, user.hashed_password):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -40,10 +40,10 @@ async def login_for_access_token(
 @router.post("/users/", response_model=schemas.User, status_code=status.HTTP_201_CREATED)
 def create_new_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
     """Creates a new user."""
-    db_user = services.user_service.get_user_by_username(db, username=user.username)
+    db_user = user_service.get_user_by_username(db, username=user.username)
     if db_user:
         raise HTTPException(status_code=400, detail="Username already registered")
-    created_user = services.user_service.create_user(db=db, user=user)
+    created_user = user_service.create_user(db=db, user=user)
     return created_user
 
 @router.get("/users/me", response_model=schemas.User)
@@ -51,7 +51,7 @@ async def read_users_me(current_user: models.User = Depends(get_current_active_u
     """Gets the profile for the currently authenticated user."""
     return current_user
 
-# You might add more user management endpoints here (e.g., get all users - requires admin privileges usually)
+
 @router.get("/users/", response_model=List[schemas.User]) # Example: Get all users (needs protection/admin role)
 def read_users(skip: int = 0, limit: int = 100, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_active_user)):
      # Add role check here if needed: if current_user.role != "admin": raise HTTPException(...)
