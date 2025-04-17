@@ -48,6 +48,9 @@ WORKDIR /app
 
 COPY --from=builder /app/.venv /app/.venv
 
+COPY alembic.ini ./
+COPY alembic/ ./alembic/
+
 COPY src/ ./src/
 
 EXPOSE ${APP_PORT}
