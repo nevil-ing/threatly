@@ -21,7 +21,7 @@ class LogInDBBase(LogBase):
     id: int
 
     class Config:
-        from_atrributes = True   
+        from_attributes = True   
 
 class Log(LogInDBBase):
     pass
