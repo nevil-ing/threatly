@@ -1,0 +1,33 @@
+[tool.poetry] # <--- Add this main Poetry section header
+name = "teapecbackend"
+version = "1.0.0"
+description = "teapec"
+authors = ["Nevil-ing <nevilpurpp12@gmail.com>"] # Poetry prefers this format
+readme = "README.md"
+packages = [{include = "src"}] # <--- Include this line INSIDE [tool.poetry]
+
+[tool.poetry.dependencies] # <--- Dependency section header
+python = ">=3.13" # Keep requires-python under dependencies
+fastapi = ">=0.115.12,<0.116.0"
+uvicorn = ">=0.34.1,<0.35.0"
+# Use the key "python-jose" with extras, not "python-jose[cryptography]"
+python-jose = {extras = ["cryptography"], version = ">=3.4.0,<4.0.0"}
+requests = ">=2.32.3,<3.0.0"
+python-dotenv = ">=1.1.0,<2.0.0"
+alembic = ">=1.15.2,<2.0.0"
+pydantic = ">=2.11.3,<3.0.0"
+sqlalchemy = ">=2.0.40,<3.0.0"
+psycopg2-binary = ">=2.9.10,<3.0.0"
+asyncpg = ">=0.30.0,<0.31.0"
+# --- Added typing-extensions explicitly (good practice) ---
+typing-extensions = "^4.0" # Many libraries depend on this implicitly
+
+# Optional: Add dev dependencies if you have any
+# [tool.poetry.group.dev.dependencies]
+# pytest = "^7.0"
+# mypy = "^1.0"
+pydantic-settings = "^2.8.1"
+
+[build-system] # <--- Keep this build system section
+requires = ["poetry-core>=1.0.0"] # Adjusted version constraint
+build-backend = "poetry.core.masonry.api"

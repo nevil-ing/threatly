@@ -1,89 +1,100 @@
-from logging.config import fileConfig
+# alembic/env.py
 
+# Standard imports
+import os
+import sys
+from logging.config import fileConfig
 from sqlalchemy import engine_from_config
 from sqlalchemy import pool
-from app.core.config import settings  
-
-from sqlalchemy import create_engine
-
 from alembic import context
-from app.core.database import Base 
-import os, sys
-sys.path.insert(0, os.path.realpath(os.path.join(os.path.dirname(__file__), '..')))
+from dotenv import load_dotenv
 
-# this is the Alembic Config object, which provides
-# access to the values within the .ini file in use.
+# --- Path Setup ---
+project_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+sys.path.insert(0, project_dir)
+
+# --- Load .env ---
+dotenv_path = os.path.join(project_dir, '.env')
+print(f"Attempting to load .env file from: {dotenv_path}")
+load_dotenv(dotenv_path=dotenv_path)
+DATABASE_URL = os.getenv('DATABASE_URL')
+
+# --- Import Base AND Models ---
+target_metadata = None # Initialize to None
+try:
+    # Import Base first
+    from src.core.database import Base
+    print("Successfully imported Base from src.core.database")
+
+    # ***** NOW IMPORT YOUR ACTUAL MODEL MODULES *****
+    # Adjust paths if your models are not directly under a 'src/models' directory structure
+    # Assuming models are in src/models/alert.py and src/models/log.py
+    import src.models.alert # This executes alert.py, registering Alert model
+    import src.models.log   # This executes log.py, registering Log model
+    # If they were in different locations, import accordingly, e.g.:
+    # import app.models.alert
+    # import app.models.log
+    print("Successfully imported model modules (alert, log)")
+
+    # Assign the metadata *after* all models are imported/registered
+    target_metadata = Base.metadata
+    print("Assigned Base.metadata to target_metadata")
+
+except ImportError as e:
+    print(f"Error importing Base or model modules: {e}")
+    print("Please check paths in alembic/env.py and ensure model files exist.")
+    # target_metadata remains None if import fails
+
+# --- Alembic Config Setup ---
 config = context.config
+if not DATABASE_URL:
+    print("Error: DATABASE_URL environment variable not found.")
+else:
+    print(f"DATABASE_URL found: {DATABASE_URL[:15]}...")
+    config.set_main_option('sqlalchemy.url', DATABASE_URL)
+    print("Alembic config 'sqlalchemy.url' set from environment variable.")
 
-# Interpret the config file for Python logging.
-# This line sets up loggers basically.
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
-# Inside alembic/env.py, BEFORE target_metadata = Base.metadata
-print("DEBUG: Attempting direct model import in env.py")
-try:
-    from app.models.log import Log
-    from app.models.alert import Alert
-    print("DEBUG: Direct model import SUCCESSFUL")
-except Exception as e:
-    print(f"DEBUG: Direct model import FAILED: {e}")
 
-target_metadata = Base.metadata
-print(f"DEBUG: Tables known after setting target_metadata: {target_metadata.tables.keys()}")
-
-
-# other values from the config, defined by the needs of env.py,
-# can be acquired:
-# my_important_option = config.get_main_option("my_important_option")
-# ... etc.
-
+# --- run_migrations_offline / run_migrations_online Functions ---
+# (Make sure target_metadata is passed correctly inside these as before)
 
 def run_migrations_offline() -> None:
-    """Run migrations in 'offline' mode.
-
-    This configures the context with just a URL
-    and not an Engine, though an Engine is acceptable
-    here as well.  By skipping the Engine creation
-    we don't even need a DBAPI to be available.
-
-    Calls to context.execute() here emit the given string to the
-    script output.
-
-    """
+    """Run migrations in 'offline' mode."""
     url = config.get_main_option("sqlalchemy.url")
     context.configure(
         url=url,
-        target_metadata=target_metadata,
+        target_metadata=target_metadata, # Ensure this uses the variable set above
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
     )
-
     with context.begin_transaction():
         context.run_migrations()
 
-
 def run_migrations_online() -> None:
-    """Run migrations in 'online' mode.
+    """Run migrations in 'online' mode."""
+    if target_metadata is None:
+         print("Error: target_metadata is None. Cannot run online migrations for autogenerate.")
+         print("Check model imports in env.py.")
+         return # Exit early if metadata couldn't be loaded
 
-    In this scenario we need to create an Engine
-    and associate a connection with the context. 
-
-    """
-    connectable = create_engine(
-    settings.DATABASE_URL,
-    poolclass=pool.NullPool,
+    connectable = engine_from_config(
+        config.get_section(config.config_ini_section, {}),
+        prefix="sqlalchemy.",
+        poolclass=pool.NullPool,
     )
-
     with connectable.connect() as connection:
         context.configure(
-            connection=connection, target_metadata=target_metadata
+            connection=connection, target_metadata=target_metadata # Ensure this uses the variable set above
         )
-
         with context.begin_transaction():
             context.run_migrations()
 
-
+# --- Main Execution Logic ---
 if context.is_offline_mode():
+    print("Running migrations in offline mode...")
     run_migrations_offline()
 else:
-    run_migrations_online()
+    print("Running migrations in online mode...")
+    run_migrations_online() # This will now run with populated metadata (if imports succeed)
