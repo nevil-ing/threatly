@@ -11,7 +11,7 @@ app = FastAPI(title="Sentinel XDR Backend API")
 app.middleware("http")(log_requests)
 
 #include routes
-app.include_router(auth.router, prefix="/api/v1/auth", tags=["Authentication"])
+#app.include_router(auth.router, prefix="/api/v1/auth", tags=["Authentication"])
 app.include_router(log.router, prefix="/api/v1", tags=["Logs"])
 #app.include_router(alerts.router, prefix="/api/v1", tags=["Alerts"])
 

@@ -24,6 +24,21 @@ async def create_log(log: LogCreate, db: Session = Depends(get_db)):
     db.refresh(db_log)
     return {"status": "Log received successfully!", "log_id": db_log.id}
 
+@router.get("/logs/", tags=["logs"])
+async def read_all_logs(db: Session = Depends(get_db)):
+    db_logs = db.query(Log).all()
+    if not db_logs:
+        raise HTTPException(status_code=404, detail="No logs found")
+    return db_logs
+
+@router.get("/logs/{log_id}")
+async def read_log(log_id: int, db: Session = Depends(get_db)):
+    db_log = db.query(Log).filter(Log.id == log_id).first()
+    if db_log is None:
+        raise HTTPException(status_code=404, detail="Log not found")
+    return db_log
+
+
 @router.put("/logs/{log_id}")
 async def update_log(log_id: int, log: LogUpdate, db: Session = Depends(get_db)):
     db_log = db.query(Log).filter(Log.id == log_id).first()
@@ -39,10 +54,3 @@ async def update_log(log_id: int, log: LogUpdate, db: Session = Depends(get_db))
     db.commit()
     db.refresh(db_log)
     return {"status": "Log updated successfully", "log_id": db_log.id}
-
-@router.get("/logs/{log_id}")
-async def read_log(log_id: int, db: Session = Depends(get_db)):
-    db_log = db.query(Log).filter(Log.id == log_id).first()
-    if db_log is None:
-        raise HTTPException(status_code=404, detail="Log not found")
-    return db_log
