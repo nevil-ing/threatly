@@ -27,6 +27,8 @@ typing-extensions = "^4.0" # Many libraries depend on this implicitly
 # pytest = "^7.0"
 # mypy = "^1.0"
 pydantic-settings = "^2.8.1"
+torch = "^2.7.0"
+transformers = "^4.51.3"
 
 [build-system] # <--- Keep this build system section
 requires = ["poetry-core>=1.0.0"] # Adjusted version constraint
