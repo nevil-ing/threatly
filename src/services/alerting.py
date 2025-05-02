@@ -41,7 +41,7 @@ def trigger_alert(log_entry: models.Log, db: Session):
         db.rollback() # Rollback if storing alert fails
 
     # --- send alert notifications---
-    # Example: Send email
+    # 
     # if settings.ALERTING_EMAIL_TO:
     #     send_email_alert(subject=f"Sentinel XDR Alert: {alert_severity}",
     #                      body=alert_description,
