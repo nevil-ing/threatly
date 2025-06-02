@@ -31,7 +31,7 @@ def trigger_alert(log_entry: models.Log, db: Session):
             severity=alert_severity,
             description=alert_description
         )
-        db_alert = models.Alert(**alert_data.dict())
+        db_alert = models.Alert(**alert_data.model_dump())
         db.add(db_alert)
         db.commit()
         db.refresh(db_alert)

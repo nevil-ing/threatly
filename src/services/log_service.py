@@ -5,7 +5,7 @@ from src import models
 from src.schemas.log import Log, LogCreate, LogUpdate 
 
 def create_log(db: Session, log: LogCreate):
-    db_log = models.Log(**log.dict()) # Create SQLAlchemy model instance from Pydantic model
+    db_log = models.Log(**log.model_dump()) # Create SQLAlchemy model instance from Pydantic model
     db.add(db_log)
     db.commit()
     db.refresh(db_log)

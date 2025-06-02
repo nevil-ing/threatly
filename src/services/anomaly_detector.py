@@ -3,6 +3,9 @@ import torch
 from transformers import AutoModelForSequenceClassification, AutoTokenizer
 import json
 from typing import Dict, Any, Union
+from src.services.alerting import trigger_alert
+from sqlalchemy.orm import Session
+import logging
 
 class LogAnomalyDetector:
     """Service to detect anomalies in logs using a pre-trained transformer model."""
@@ -31,13 +34,15 @@ class LogAnomalyDetector:
         # If we couldn't find a specific message field, use the entire data as a string
         return str(log_data)
     
-    def detect_anomaly(self, log_data: Union[str, Dict[str, Any]], threshold=0.5) -> Dict[str, Any]:
+    def detect_anomaly(self, log_data: Union[str, Dict[str, Any]], threshold=0.5, log_entry=None, db: Session=None) -> Dict[str, Any]:
         """
         Detect if a log entry is anomalous.
         
         Args:
             log_data: Either the raw log message or structured log data
             threshold: Score threshold above which a log is considered anomalous
+            log_entry: Optional database log entry object to update
+            db: Optional database session for persistence
             
         Returns:
             Dict containing anomaly score and boolean flag indicating if it's an anomaly
@@ -71,7 +76,27 @@ class LogAnomalyDetector:
             anomaly_prob = probabilities[0][1].item()
             is_anomaly = anomaly_prob > threshold
             
-            return {
+            result = {
                 'is_anomaly': is_anomaly,
                 'anomaly_score': anomaly_prob
             }
+            
+            #trigger alert
+            if is_anomaly and log_entry is not None and db is not None:
+                try:
+                    # Update the log entry with anomaly information
+                    log_entry.is_anomaly = True
+                    log_entry.anomaly_score = anomaly_prob
+                    db.add(log_entry)
+                    db.commit()
+                    db.refresh(log_entry)
+                    
+                    # Trigger the alert
+                    trigger_alert(log_entry=log_entry, db=db)
+                    logging.info(f"Alert triggered for anomalous log {log_entry.id} with score {anomaly_prob:.3f}")
+                    
+                except Exception as e:
+                    logging.error(f"Failed to update log {log_entry.id} or trigger alert: {e}")
+                    db.rollback()
+            
+            return result
