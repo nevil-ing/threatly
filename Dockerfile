@@ -28,7 +28,6 @@ WORKDIR /app
 
 COPY pyproject.toml poetry.lock ./
 
-
 RUN poetry install --no-root --sync
 
 FROM python:3.13-slim-bullseye as runtime
@@ -48,11 +47,17 @@ WORKDIR /app
 
 COPY --from=builder /app/.venv /app/.venv
 
+# Copy Alembic configuration and migration files
 COPY alembic.ini ./
 COPY alembic/ ./alembic/
 
+# Copy source code
 COPY src/ ./src/
+
+# Copy migration script
+COPY scripts/ ./scripts/
 
 EXPOSE ${APP_PORT}
 
-CMD uvicorn src.main:app --host ${APP_HOST} --port ${APP_PORT}
+# Use the migration script as the default command
+CMD ["./scripts/start.sh"]
