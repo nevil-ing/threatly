@@ -107,9 +107,13 @@ def analyze_logs_batch(threshold: float, db: Session):
             
         for log in logs:
             try:
-                result = anomaly_detector.detect_anomaly(log.data, threshold)
-                log.is_anomaly = result['is_anomaly']
-                log.anomaly_score = result['anomaly_score']
+                # Pass the log entry and db session to enable alerting
+                result = anomaly_detector.detect_anomaly(log.data, threshold, log_entry=log, db=db)
+                # The anomaly_detector will handle updating the log and triggering alerts
+                if not result['is_anomaly']:
+                    # Only update if it's not an anomaly (anomalies are handled in detect_anomaly)
+                    log.is_anomaly = result['is_anomaly']
+                    log.anomaly_score = result['anomaly_score']
             except Exception as e:
                 print(f"Error analyzing log {log.id}: {e}")
                 # Set default values

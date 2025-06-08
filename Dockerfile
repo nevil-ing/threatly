@@ -17,9 +17,10 @@ ENV PYTHONUNBUFFERED=1 \
 # Add Poetry to PATH
 ENV PATH="$POETRY_HOME/bin:$PATH"
 
-# Install Poetry
-# Why install Poetry? We need it inside the container to install dependencies defined in pyproject.toml
-RUN apt-get update && apt-get install --no-install-recommends -y curl \
+# Install Poetry and PostgreSQL client
+RUN apt-get update && apt-get install --no-install-recommends -y \
+    curl \
+    postgresql-client \
     && curl -sSL https://install.python-poetry.org | python3 - \
     && apt-get remove -y curl && apt-get clean && rm -rf /var/lib/apt/lists/*
 
@@ -27,7 +28,6 @@ RUN apt-get update && apt-get install --no-install-recommends -y curl \
 WORKDIR /app
 
 COPY pyproject.toml poetry.lock ./
-
 
 RUN poetry install --no-root --sync
 
@@ -43,16 +43,30 @@ ENV PYTHONUNBUFFERED=1 \
     APP_HOST="0.0.0.0" \
     APP_PORT="8000"
 
+# Install PostgreSQL client in runtime stage
+RUN apt-get update && apt-get install --no-install-recommends -y \
+    postgresql-client \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
+
 # Set the working directory
 WORKDIR /app
 
 COPY --from=builder /app/.venv /app/.venv
 
+# Copy Alembic configuration and migration files
 COPY alembic.ini ./
 COPY alembic/ ./alembic/
 
+# Copy source code
 COPY src/ ./src/
+
+# Copy migration script
+COPY scripts/ ./scripts/
+
+# Make scripts executable
+RUN chmod +x scripts/*.sh
 
 EXPOSE ${APP_PORT}
 
-CMD uvicorn src.main:app --host ${APP_HOST} --port ${APP_PORT}
+# Use the migration script as the default command
+CMD ["./scripts/start.sh"]
