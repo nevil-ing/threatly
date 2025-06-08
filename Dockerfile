@@ -17,9 +17,10 @@ ENV PYTHONUNBUFFERED=1 \
 # Add Poetry to PATH
 ENV PATH="$POETRY_HOME/bin:$PATH"
 
-# Install Poetry
-# Why install Poetry? We need it inside the container to install dependencies defined in pyproject.toml
-RUN apt-get update && apt-get install --no-install-recommends -y curl \
+# Install Poetry and PostgreSQL client
+RUN apt-get update && apt-get install --no-install-recommends -y \
+    curl \
+    postgresql-client \
     && curl -sSL https://install.python-poetry.org | python3 - \
     && apt-get remove -y curl && apt-get clean && rm -rf /var/lib/apt/lists/*
 
@@ -42,6 +43,11 @@ ENV PYTHONUNBUFFERED=1 \
     APP_HOST="0.0.0.0" \
     APP_PORT="8000"
 
+# Install PostgreSQL client in runtime stage
+RUN apt-get update && apt-get install --no-install-recommends -y \
+    postgresql-client \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
+
 # Set the working directory
 WORKDIR /app
 
@@ -56,6 +62,9 @@ COPY src/ ./src/
 
 # Copy migration script
 COPY scripts/ ./scripts/
+
+# Make scripts executable
+RUN chmod +x scripts/*.sh
 
 EXPOSE ${APP_PORT}
 

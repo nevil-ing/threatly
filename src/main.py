@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware 
-from src.api import  auth, log, alert
+from src.api import  auth, log, alert, incident
 import uvicorn
 from src.core.database import engine, Base
 from src.middleware.logging_middleware import log_requests
@@ -30,8 +30,8 @@ app.add_middleware(
 app.include_router(auth.router, prefix="/api/v1/auth", tags=["Authentication"])
 app.include_router(log.router, prefix="/api/v1", tags=["Logs"])
 app.include_router(alert.router, prefix="/api/v1", tags=["Alerts"])
-
-
+app.include_router(incident.router, prefix="/api/v1", tags=["Incidents"])
 if __name__ == "__main__":
+   
    
     uvicorn.run(app, host="0.0.0.0", port = 8000)
