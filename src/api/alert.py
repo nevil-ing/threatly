@@ -33,7 +33,7 @@ async def get_alerts(
         query = query.filter(Alert.severity == severity)
     
     if alert_status:
-        query = query.filter(Alert.status == status)
+        query = query.filter(Alert.status == alert_status)
     
     if source_ip:
         query = query.filter(Alert.source_ip == source_ip)
@@ -151,7 +151,7 @@ async def get_alerts_by_threat_type(
         query = query.filter(Alert.severity == severity)
     
     if alert_status:
-        query = query.filter(Alert.status == status)
+        query = query.filter(Alert.status == alert_status)
     
     if days:
         start_date = datetime.now() - timedelta(days=days)

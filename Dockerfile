@@ -1,72 +1,53 @@
-# Dockerfile
-
-
-# Using slim-bullseye for a smaller image size
+# Stage 1: Builder - Install dependencies
 FROM python:3.13-slim-bullseye as builder
 
-# Set environment variables
 ENV PYTHONUNBUFFERED=1 \
-    # Poetry settings:
     POETRY_NO_INTERACTION=1 \
     POETRY_VIRTUALENVS_IN_PROJECT=true \
-    # Set path where Poetry installs packages inside the container
     POETRY_HOME="/opt/poetry" \
-    # Set path for Poetry's cache
     POETRY_CACHE_DIR="/opt/.cache"
-
-# Add Poetry to PATH
 ENV PATH="$POETRY_HOME/bin:$PATH"
 
-# Install Poetry and PostgreSQL client
-RUN apt-get update && apt-get install --no-install-recommends -y \
-    curl \
-    postgresql-client \
+# Install Poetry using its official installer
+RUN apt-get update && apt-get install --no-install-recommends -y curl \
     && curl -sSL https://install.python-poetry.org | python3 - \
     && apt-get remove -y curl && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# Set the working directory in the container
 WORKDIR /app
 
+# Install dependencies
 COPY pyproject.toml poetry.lock ./
-
 RUN poetry install --no-root --sync
 
+
+# Stage 2: Runtime - Create the final, lean image
 FROM python:3.13-slim-bullseye as runtime
 
-# Set environment variables (can be overridden by docker-compose)
 ENV PYTHONUNBUFFERED=1 \
-    # Set the path where packages were installed by Poetry in the builder stage
     PYTHONPATH="/app/.venv/lib/python3.13/site-packages" \
-    # Add Poetry's venv bin to PATH if needed, though we use absolute path in CMD
-    PATH="/app/.venv/bin:$PATH" \
-    # Set default host and port (can be overridden)
-    APP_HOST="0.0.0.0" \
-    APP_PORT="8000"
+    PATH="/app/.venv/bin:$PATH"
 
-# Install PostgreSQL client in runtime stage
+# Install only necessary runtime system dependencies (PostgreSQL client)
 RUN apt-get update && apt-get install --no-install-recommends -y \
     postgresql-client \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# Set the working directory
 WORKDIR /app
 
+# Copy the virtual environment from the builder stage
 COPY --from=builder /app/.venv /app/.venv
 
-# Copy Alembic configuration and migration files
-COPY alembic.ini ./
-COPY alembic/ ./alembic/
-
-# Copy source code
-COPY src/ ./src/
-
-# Copy migration script
-COPY scripts/ ./scripts/
+# Copy all application code and configuration in a single layer
+COPY . .
 
 # Make scripts executable
 RUN chmod +x scripts/*.sh
 
-EXPOSE ${APP_PORT}
+# Set a default user to run as (good security practice)
+RUN useradd --create-home appuser
+USER appuser
 
-# Use the migration script as the default command
+EXPOSE 8000
+
+# The CMD is defined in docker-compose.yml, but this is a good default
 CMD ["./scripts/start.sh"]
