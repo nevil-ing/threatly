@@ -1022,7 +1022,7 @@ async def create_jira_ticket(
         event_type="Integration",
         description=f"JIRA ticket created: {jira_ticket_id}",
         created_by=current_user.get("sub", "unknown"),
-        metadata={
+        meta_data={
             "integration_type": "jira",
             "ticket_id": jira_ticket_id,
             "project_key": project_key
@@ -1064,7 +1064,7 @@ async def create_slack_channel(
         event_type="Integration",
         description=f"Slack channel created: #{channel_name}",
         created_by=current_user.get("sub", "unknown"),
-        metadata={
+        meta_data={
             "integration_type": "slack",
             "channel_name": channel_name
         }

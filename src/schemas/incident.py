@@ -29,7 +29,7 @@ class IncidentBase(BaseModel):
     description: str = Field(..., min_length=10)
     incident_type: str
     severity: IncidentSeverity
-    priority: str = Field(..., regex="^P[1-4]$")
+    priority: str = Field(..., pattern="^P[1-4]$")
     assigned_to: Optional[str] = None
     affected_systems: Optional[str] = None
     business_impact: Optional[str] = None
@@ -44,7 +44,7 @@ class IncidentUpdate(BaseModel):
     description: Optional[str] = Field(None, min_length=10)
     incident_type: Optional[str] = None
     severity: Optional[IncidentSeverity] = None
-    priority: Optional[str] = Field(None, regex="^P[1-4]$")
+    priority: Optional[str] = Field(None, pattern="^P[1-4]$")
     status: Optional[IncidentStatus] = None
     assigned_to: Optional[str] = None
     affected_systems: Optional[str] = None
@@ -72,7 +72,7 @@ class IncidentActionBase(BaseModel):
     action_type: str
     title: str = Field(..., min_length=5, max_length=200)
     description: str
-    priority: str = Field(..., regex="^(Low|Medium|High|Critical)$")
+    priority: str = Field(..., pattern="^(Low|Medium|High|Critical)$")
     assigned_to: Optional[str] = None
     due_date: Optional[datetime] = None
 
@@ -84,7 +84,7 @@ class IncidentActionUpdate(BaseModel):
     title: Optional[str] = Field(None, min_length=5, max_length=200)
     description: Optional[str] = None
     status: Optional[ActionStatus] = None
-    priority: Optional[str] = Field(None, regex="^(Low|Medium|High|Critical)$")
+    priority: Optional[str] = Field(None, pattern="^(Low|Medium|High|Critical)$")
     assigned_to: Optional[str] = None
     due_date: Optional[datetime] = None
     notes: Optional[str] = None
