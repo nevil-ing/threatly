@@ -36,7 +36,6 @@ services:
       timeout: 5s
       retries: 5
 
-  # Optional: Separate service for running migrations manually
   migrate:
     build: 
        context: .
