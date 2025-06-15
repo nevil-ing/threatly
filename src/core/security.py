@@ -3,10 +3,10 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from jose import jwt, JWTError, ExpiredSignatureError
 from dotenv import load_dotenv
-
+from pathlib import Path
 # Load .env from the parent directory (adjust path if needed)
-dotenv_path = os.path.join(os.path.dirname(__file__), '..', '.env')
-load_dotenv(dotenv_path=dotenv_path)
+env_path = Path(__file__).resolve().parent.parent.parent / ".env"
+load_dotenv(dotenv_path=env_path)
 
 # --- Configuration for HS256 ---
 SUPABASE_AUDIENCE = os.getenv("SUPABASE_AUDIENCE")
