@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query, Background
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from datetime import datetime
-
+from sqlalchemy import desc, func
 from src.core.database import get_db
 from src.core.security import get_current_user
 from src.services.incident_service import IncidentService
@@ -10,8 +10,10 @@ from src.schemas.incident import (
     IncidentCreate, IncidentUpdate, IncidentResponse, IncidentDetails,
     IncidentActionCreate, IncidentActionUpdate, IncidentActionResponse,
     IncidentTimelineCreate, IncidentTimelineResponse,
-    IncidentStats, IncidentStatus, IncidentSeverity
+    IncidentStats, IncidentStatus, IncidentSeverity,
+    PaginatedIncidentResponse
 )
+from src.models.incident import Incident 
 
 router = APIRouter(prefix="/incidents", tags=["Incident Response"])
 
@@ -36,32 +38,53 @@ async def create_incident(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to create incident: {str(e)}"
         )
-
-@router.get("/", response_model=List[IncidentResponse])
+#get incident endpoint
+@router.get("/", response_model=PaginatedIncidentResponse) 
 async def get_incidents(
-    skip: int = Query(0, ge=0),
-    limit: int = Query(100, ge=1, le=1000),
-    status_filter: Optional[IncidentStatus] = Query(None, alias="status"),
-    severity: Optional[IncidentSeverity] = None,
-    assigned_to: Optional[str] = None,
-    incident_type: Optional[str] = None,
+    skip: int = Query(0, ge=0, description="Number of items to skip"),
+    limit: int = Query(10, ge=1, le=100, description="Number of items to return per page"), # Adjusted default limit
+    status_filter: Optional[List[IncidentStatus]] = Query(None, alias="status", description="Filter by one or more statuses"),
+    severity: Optional[IncidentSeverity] = Query(None, description="Filter by severity"),
+    assigned_to: Optional[str] = Query(None, description="Filter by assignee"),
+    incident_type: Optional[str] = Query(None, description="Filter by incident type"),
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user) # Keep current_user if auth is needed for this endpoint
 ):
-    """Get incidents with optional filters"""
-    incidents = IncidentService.get_incidents(
-        db=db,
+    """
+    Get incidents with optional filters and pagination.
+    Multiple status values can be provided.
+    """
+    query = db.query(Incident)
+    
+    # Apply filters
+    if status_filter:
+        # Handle multiple status values if provided
+        status_values = [s.value for s in status_filter]
+        query = query.filter(Incident.status.in_(status_values))
+    if severity:
+        query = query.filter(Incident.severity == severity.value) # Use .value for Enum
+    if assigned_to:
+        query = query.filter(Incident.assigned_to == assigned_to)
+    if incident_type:
+        query = query.filter(Incident.incident_type == incident_type)
+    
+    # Get total count of items matching the filters before applying pagination
+    total_count = query.count()
+    
+    # Apply ordering and pagination
+    incidents = query.order_by(desc(Incident.created_at)).offset(skip).limit(limit).all()
+    
+    return PaginatedIncidentResponse(
+        items=incidents,
+        total=total_count,
         skip=skip,
-        limit=limit,
-        status=status_filter,
-        severity=severity,
-        assigned_to=assigned_to,
-        incident_type=incident_type
+        limit=limit
     )
-    return incidents
-
+    
+    
+#get incident id
 @router.get("/{incident_id}", response_model=IncidentDetails)
-async def get_incident(
+async def get_incident_details(
     incident_id: int,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user)
@@ -93,6 +116,8 @@ async def get_incident(
     
     return incident_details
 
+
+#update incident id
 @router.put("/{incident_id}", response_model=IncidentResponse)
 async def update_incident(
     incident_id: int,
@@ -112,6 +137,7 @@ async def update_incident(
     
     return incident
 
+#close an incident
 @router.post("/{incident_id}/close", response_model=IncidentResponse)
 async def close_incident(
     incident_id: int,
