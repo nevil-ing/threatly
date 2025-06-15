@@ -1,21 +1,24 @@
 #!/bin/bash
-set -e
-echo "Starting TEAPEC Backend..."
-# Wait for database to be ready
-echo "Waiting for database to be ready..."
-while ! pg_isready -h db -p 5432 -U ${POSTGRES_USER}; do
-  sleep 2
-done
-echo "Database is ready!"
-# Run database migrations
-echo "Running database migrations..."
-alembic upgrade head
-if [ $? -eq 0 ]; then
-    echo "Migrations completed successfully!"
-else
-    echo "Migration failed!"
-    exit 1
+# scripts/create_migrations.sh
+
+if [ -z "$1" ]; then
+  echo "Usage: $0 \"<migration_message>\""
+  exit 1
 fi
-# Start the application
-echo "Starting FastAPI application..."
-exec uvicorn src.main:app --host ${APP_HOST} --port ${APP_PORT} --reload
+
+MIGRATION_MESSAGE="$1"
+
+echo "Ensuring database container is up..."
+docker-compose up -d db
+
+echo "Waiting for DB to be ready..."
+sleep 5 
+
+echo "Creating new migration: '$MIGRATION_MESSAGE' using the migrate service..."
+
+# The --autogenerate flag is essential
+docker-compose run --rm migrate alembic revision --autogenerate -m "$MIGRATION_MESSAGE"
+
+echo ""
+echo "Migration file created. Please review it in alembic/versions/."
+echo "Then, apply the migration using: docker-compose run --rm migrate"
