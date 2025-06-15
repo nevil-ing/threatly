@@ -114,7 +114,7 @@ class IncidentTimeline(Base):
     created_by = Column(String(100), nullable=False)
     
     # JSON metadata for additional event details
-    metadata = Column(Text, nullable=True)  # Store JSON as text
+    meta_data = Column(Text, nullable=True)  # Store JSON as text
     
     # Relationships
     incident = relationship("Incident", back_populates="timeline")

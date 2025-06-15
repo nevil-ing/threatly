@@ -16,11 +16,11 @@ async def get_alerts(
     limit: int = 100,
     threat_type: Optional[str] = Query(None, description="Filter by threat type"),
     severity: Optional[str] = Query(None, description="Filter by severity (Critical, High, Medium, Low)"),
-    status: Optional[str] = Query(None, description="Filter by status (Open, Investigating, Resolved, False Positive)"),
+    alert_status: Optional[str] = Query(None, description="Filter by status (Open, Investigating, Resolved, False Positive)"),
     source_ip: Optional[str] = Query(None, description="Filter by source IP"),
     days: Optional[int] = Query(None, description="Filter by days back"),
-    db: Session = Depends(get_db)
-):
+    db: Session = Depends(get_db)):
+    
     """Get all alerts with optional filters and threat type information"""
     
     query = db.query(Alert).join(Log, Alert.log_id == Log.id)
@@ -32,14 +32,14 @@ async def get_alerts(
     if severity:
         query = query.filter(Alert.severity == severity)
     
-    if status:
-        query = query.filter(Alert.status == status)
+    if alert_status:
+        query = query.filter(Alert.status == alert_status)
     
     if source_ip:
         query = query.filter(Alert.source_ip == source_ip)
     
     if days:
-        start_date = datetime.utcnow() - timedelta(days=days)
+        start_date = datetime.now() - timedelta(days=days)
         query = query.filter(Alert.created_at >= start_date)
     
     # Order by creation date (newest first)
@@ -48,7 +48,7 @@ async def get_alerts(
     db_alerts = query.offset(skip).limit(limit).all()
     
     if not db_alerts:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No alerts found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Alert not found")
     
     return db_alerts
 
@@ -70,7 +70,7 @@ async def get_threat_type_summary(
 ):
     """Get comprehensive summary of alerts by threat type"""
     
-    start_date = datetime.utcnow() - timedelta(days=days)
+    start_date = datetime.now() - timedelta(days=days)
     
     # Get threat type distribution with severity breakdown
     threat_summary = db.query(
@@ -130,7 +130,7 @@ async def get_threat_type_summary(
             }
             for threat_type, data in sorted(threat_data.items(), key=lambda x: x[1]['total_count'], reverse=True)
         ],
-        "generated_at": datetime.utcnow().isoformat()
+        "generated_at": datetime.now().isoformat()
     }
 
 @router.get("/alerts/threat-types/{threat_type}", response_model=List[AlertResponse], tags=["Alert"])
@@ -139,7 +139,7 @@ async def get_alerts_by_threat_type(
     skip: int = 0,
     limit: int = 100,
     severity: Optional[str] = Query(None, description="Filter by severity"),
-    status: Optional[str] = Query(None, description="Filter by status"),
+    alert_status: Optional[str] = Query(None, description="Filter by status"),
     days: Optional[int] = Query(7, description="Days to look back"),
     db: Session = Depends(get_db)
 ):
@@ -150,11 +150,11 @@ async def get_alerts_by_threat_type(
     if severity:
         query = query.filter(Alert.severity == severity)
     
-    if status:
-        query = query.filter(Alert.status == status)
+    if alert_status:
+        query = query.filter(Alert.status == alert_status)
     
     if days:
-        start_date = datetime.utcnow() - timedelta(days=days)
+        start_date = datetime.now() - timedelta(days=days)
         query = query.filter(Alert.created_at >= start_date)
     
     query = query.order_by(desc(Alert.created_at))
@@ -191,7 +191,7 @@ async def update_alert_status(
     if alert_update.resolution_notes:
         db_alert.resolution_notes = alert_update.resolution_notes
     
-    db_alert.updated_at = datetime.utcnow()
+    db_alert.updated_at = datetime.now()
     
     try:
         db.commit()
@@ -211,7 +211,7 @@ async def get_alert_dashboard_stats(
 ):
     """Get comprehensive dashboard statistics for alerts"""
     
-    start_date = datetime.utcnow() - timedelta(days=days)
+    start_date = datetime.now() - timedelta(days=days)
     
     # Basic counts
     total_alerts = db.query(Alert).filter(Alert.created_at >= start_date).count()
@@ -293,7 +293,7 @@ async def get_alert_dashboard_stats(
             for item in top_source_ips
         ],
         "period_days": days,
-        "generated_at": datetime.utcnow().isoformat()
+        "generated_at": datetime.now().isoformat()
     }
 
 @router.get("/alerts/threat-types/list", tags=["Alert"])

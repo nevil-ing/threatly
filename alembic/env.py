@@ -30,6 +30,7 @@ try:
     # Adjust paths if your models are not directly under a 'src/models' directory structure
     # Assuming models are in src/models/alert.py and src/models/log.py
     import src.models.alert # This executes alert.py, registering Alert model
+    import src.models.incident 
     import src.models.log   # This executes log.py, registering Log model
     # If they were in different locations, import accordingly, e.g.:
     # import app.models.alert

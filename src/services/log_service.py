@@ -21,7 +21,7 @@ def update_log(db: Session, log_id: int, log: LogUpdate):
     db_log = get_log(db, log_id=log_id)
     if not db_log:
         return None
-    for key, value in log.dict(exclude_unset=True).items(): # Iterate over only set values in Pydantic model
+    for key, value in log.model_dump(exclude_unset=True).items(): # Iterate over only set values in Pydantic model
         setattr(db_log, key, value) # Update SQLAlchemy model attributes
     db.add(db_log)
     db.commit()

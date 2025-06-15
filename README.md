@@ -1,95 +1,74 @@
 # teapec-backend
 
-## Project Setup and Run Guide
+A FastAPI backend for the Sentinel XDR project, featuring log processing, anomaly detection, and incident response.
 
 ### Prerequisites
-- Python 3.8+
-- Docker 
-- PostgreSQL 
-- Redis 
+- Docker & Docker Compose
+- Poetry (for local development)
 
-### Installation
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/your-repo/teapec-backend.git
-   cd teapec-backend
-   ```
+### Running with Docker (Recommended)
 
-2. Create and activate a virtual environment:
-   ```bash
-   python -m venv venv
-   source venv/bin/activate  # On Windows: venv\Scripts\activate
-   ```
+1.  **Environment Setup**
+    Copy the example environment file and fill in your secrets:
+    ```bash
+    cp .env.example .env
+    ```
 
-3. Install dependencies:
-   ```bash
-   pip install -r requirements.txt
-   ```
+2.  **Build the Docker Images**
+    ```bash
+    docker-compose build
+    ```
 
-### Configuration
-1. Copy `.env.example` to `.env` and update with your configuration:
-   ```bash
-   cp .env.example .env
-   ```
-   Edit the `.env` file to set:
-   - Database connection (DATABASE_URL)
-   - Secret keys
-   - Any service-specific configurations
+3.  **Run Database Migrations**
+    This applies any pending database schema changes.
+    ```bash
+    docker-compose run --rm migrate
+    ```
 
-### Database Setup
-1. Initialize the database:
-   ```bash
-   alembic upgrade head
-   ```
+4.  **Start the Application**
+    ```bash
+    docker-compose up backend
+    ```
 
-### Running the Application
-#### Development Mode
-```bash
-uvicorn app.main:app --reload
-```
-
-#### Production Mode (using Docker)
-```bash
-docker-compose up --build
-```
-
-### Services
-The application includes several services:
-- Log processing (Apache, Nginx, Syslog, Windows Event Log)
-- Alerting system
-- User management
-- AI/ML processing
-
-### Testing
-Run tests with:
-```bash
-pytest tests/
-```
+The API will be available at `http://localhost:8000`.
 
 ### API Documentation
-After starting the application, access the API docs at:
 - Swagger UI: `http://localhost:8000/docs`
 - ReDoc: `http://localhost:8000/redoc`
 
-### Migrations
-To create new database migrations:
-```bash
-alembic revision --autogenerate -m "Your migration message"
-alembic upgrade head
-```
+### Development Workflow
+
+#### Creating a New Database Migration
+When you change a SQLAlchemy model in `src/models/`, you must create a new migration.
+
+1.  Make sure the database container is running:
+    ```bash
+    docker-compose up -d db
+    ```
+
+2.  Run the migration creation script from your host machine:
+    ```bash
+    ./create-migration.sh "Your descriptive migration message"
+    ```
+    *Note: You might need to make it executable first: `chmod +x create-migration.sh`*
+
+3.  Apply the new migration:
+    ```bash
+    docker-compose run --rm migrate
+    ```
 
 ### Project Structure
-```
+
 teapec-backend/
-├── app/                  # Main application code
-│   ├── api/              # API endpoints
-│   ├── core/             # Core configurations
-│   ├── models/           # Database models
-│   ├── schemas/          # Pydantic schemas
-│   ├── services/         # Business logic
-│   └── utils/            # Utility functions
-├── alembic/              # Database migrations
-├── tests/                # Test cases
-├── .env.example          # Environment variables template
-├── docker-compose.yml    # Docker compose configuration
-└── requirements.txt      # Python dependencies
+├── alembic/ # Database migrations
+├── scripts/ # Startup and utility scripts
+├── src/ # Main application source code
+│ ├── api/ # API endpoints (routers)
+│ ├── core/ # Core config, DB, security
+│ ├── models/ # SQLAlchemy models
+│ ├── schemas/ # Pydantic schemas
+│ └── services/ # Business logic
+├── .env.example # Environment variables template
+├── docker-compose.yml # Docker Compose configuration
+├── Dockerfile # Instructions for building the Docker image
+└── pyproject.toml # Python dependencies (Poetry)

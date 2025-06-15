@@ -1,23 +1,27 @@
 services:
   backend:
-    build: 
-       context: .
-       dockerfile: Dockerfile
+    build:
+      context: .
+      dockerfile: Dockerfile
     container_name: sentinel_xdr_backend
     env_file:
       - .env
     ports:
       - "8000:8000"
     volumes:
-      - ./src:/app/src
-      - ./alembic:/app/alembic
-      - ./scripts:/app/scripts
+      - ./src:/app/src         # Keep for live code reloading of Python source
+      - ./alembic:/app/alembic # Keep for Alembic to see versions and generate new ones
+      # - ./scripts:/app/scripts # Can be removed if start.sh is replaced by direct command
     depends_on:
       db:
         condition: service_healthy
     environment:
       - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
-    command: ./scripts/start.sh
+    # Direct command to start uvicorn. Add --reload if you want it for development.
+    # Your Dockerfile's CMD ["./scripts/start.sh"] will be overridden by this.
+    command: ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+    # If you still want to use start.sh (e.g., it has more logic):
+    # command: ["./scripts/start.sh"] # This would require scripts to be in the image (which they are via COPY . .)
 
   db:
     image: postgres:15
@@ -36,23 +40,24 @@ services:
       timeout: 5s
       retries: 5
 
-  # Optional: Separate service for running migrations manually
   migrate:
-    build: 
-       context: .
-       dockerfile: Dockerfile
-    container_name: sentinel_xdr_migrate
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: sentinel_xdr_migrate # Name is fine, it's for one-off runs
     env_file:
       - .env
     volumes:
-      - ./src:/app/src
-      - ./alembic:/app/alembic
+      - ./src:/app/src         # Alembic needs to see your models
+      - ./alembic:/app/alembic # Alembic needs its configuration and to write version files
+      # - ./scripts:/app/scripts # No longer needed if command is direct
     depends_on:
       db:
         condition: service_healthy
     environment:
       - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
-    command: alembic upgrade head
+    # Direct command to apply migrations
+    command: ["alembic", "upgrade", "head"]
     profiles:
       - migration
 

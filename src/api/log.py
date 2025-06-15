@@ -1,50 +1,38 @@
-from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, status
 from sqlalchemy.orm import Session
 from src.core.database import get_db
-from src.models import Log
-from src.schemas import LogCreate, LogUpdate
+from src.models import Log  
+from src.schemas import LogCreate, LogUpdate 
 from src.services.anomaly_detector import LogAnomalyDetector
+from src.services import storage_service 
+import logging
 import json
 
 router = APIRouter()
+anomaly_detector = LogAnomalyDetector()
 
-# Initialize the anomaly detector (you can also use dependency injection)
-anomaly_detector = LogAnomalyDetector(model_name="Dumi2025/log-anomaly-detection-model-new")
 
 @router.post("/logs/")
-async def create_log(log: LogCreate, db: Session = Depends(get_db)):
-    # Detect anomaly in the log
-    if not log.is_anomaly:  # Only detect if not already classified
-        try:
-            # Parse the data if it's a string containing JSON
-            log_data = log.data
-            if isinstance(log_data, str) and (log_data.startswith('{') or log_data.startswith('[')):
-                try:
-                    log_data = json.loads(log_data)
-                except json.JSONDecodeError:
-                    pass  # Keep as string if not valid JSON
-            
-            # Detect anomalies
-            result = anomaly_detector.detect_anomaly(log_data)
-            log.is_anomaly = result['is_anomaly']
-            log.anomaly_score = result['anomaly_score']
-        except Exception as e:
-            print(f"Error detecting anomaly: {e}")
-            # Continue with default values if detection fails
+async def create_log(log: LogCreate, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
     
-    # Create the log entry
-    db_log = Log(
-        timestamp=log.timestamp,
-        source_type=log.source_type,
-        source_ip=log.source_ip,
-        data=log.data,
-        is_anomaly=log.is_anomaly,
-        anomaly_score=log.anomaly_score
+    db_log = storage_service.store_log(db=db, log_data=log)
+
+    if not db_log:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to store log entry in the database."
+        )
+
+    # Schedule the background task for anomaly detection
+    background_tasks.add_task(
+        anomaly_detector.detect_anomaly,
+        log_data=log.data,
+        log_entry=db_log,
+        db=db
     )
-    db.add(db_log)
-    db.commit()
-    db.refresh(db_log)
-    return {"status": "Log received successfully!", "log_id": db_log.id}
+    
+    return {"status": "Log received and scheduled for analysis", "log_id": db_log.id}
+
 
 @router.get("/logs/", tags=["logs"])
 async def read_all_logs(db: Session = Depends(get_db)):

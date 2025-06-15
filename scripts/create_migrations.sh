@@ -1,13 +1,24 @@
 #!/bin/bash
-
-# Script to create new migrations
-set -e
+# scripts/create_migrations.sh
 
 if [ -z "$1" ]; then
-    echo "Usage: $0 <migration_message>"
-    echo "Example: $0 'Add alerts table'"
-    exit 1
+  echo "Usage: $0 \"<migration_message>\""
+  exit 1
 fi
 
-echo "Creating new migration: $1"
-docker-compose exec backend alembic revision --autogenerate -m "$1"
+MIGRATION_MESSAGE="$1"
+
+echo "Ensuring database container is up..."
+docker-compose up -d db
+
+echo "Waiting for DB to be ready..."
+sleep 5 
+
+echo "Creating new migration: '$MIGRATION_MESSAGE' using the migrate service..."
+
+# The --autogenerate flag is essential
+docker-compose run --rm migrate alembic revision --autogenerate -m "$MIGRATION_MESSAGE"
+
+echo ""
+echo "Migration file created. Please review it in alembic/versions/."
+echo "Then, apply the migration using: docker-compose run --rm migrate"
