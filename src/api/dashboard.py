@@ -8,7 +8,7 @@ from src.schemas.dashboard import DashboardSummaryStats # Import the new schema
 router = APIRouter()
 
 @router.get(
-    "/dashboard/summary-stats",
+    "dashboard/summary-stats",
     response_model=DashboardSummaryStats,
     tags=["Dashboard"],
     summary="Get summary statistics for the dashboard"

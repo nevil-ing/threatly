@@ -10,6 +10,7 @@ class LogBase(BaseModel):
     data: Dict[str, Any]
     is_anomaly: bool = False
     anomaly_score: Optional[float] = None
+    threat_type: Optional[str] = None
 
 class LogCreate(LogBase):
     pass

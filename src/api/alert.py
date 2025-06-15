@@ -10,7 +10,7 @@ from datetime import datetime, timedelta
 
 router = APIRouter()
 
-@router.get("/alerts/", response_model=List[AlertResponse], tags=["Alert"])
+@router.get("alerts/", response_model=List[AlertResponse], tags=["Alert"])
 async def get_alerts(
     skip: int = 0,
     limit: int = 100,
@@ -52,7 +52,7 @@ async def get_alerts(
     
     return db_alerts
 
-@router.get("/alerts/{alert_id}", response_model=AlertResponse, tags=["Alert"])
+@router.get("alerts/{alert_id}", response_model=AlertResponse, tags=["Alert"])
 async def get_alert(alert_id: int, db: Session = Depends(get_db)):
     """Get a specific alert with full threat type details"""
     
@@ -63,7 +63,7 @@ async def get_alert(alert_id: int, db: Session = Depends(get_db)):
     
     return db_alert
 
-@router.get("/alerts/threat-types/summary", tags=["Alert"])
+@router.get("alerts/threat-types/summary", tags=["Alert"])
 async def get_threat_type_summary(
     days: int = Query(7, description="Number of days to look back"),
     db: Session = Depends(get_db)
@@ -133,7 +133,7 @@ async def get_threat_type_summary(
         "generated_at": datetime.now().isoformat()
     }
 
-@router.get("/alerts/threat-types/{threat_type}", response_model=List[AlertResponse], tags=["Alert"])
+@router.get("alerts/threat-types/{threat_type}", response_model=List[AlertResponse], tags=["Alert"])
 async def get_alerts_by_threat_type(
     threat_type: str,
     skip: int = 0,
@@ -168,7 +168,7 @@ async def get_alerts_by_threat_type(
     
     return db_alerts
 
-@router.put("/alerts/{alert_id}/status", response_model=AlertResponse, tags=["Alert"])
+@router.put("alerts/{alert_id}/status", response_model=AlertResponse, tags=["Alert"])
 async def update_alert_status(
     alert_id: int,
     alert_update: AlertUpdate,
@@ -204,7 +204,7 @@ async def update_alert_status(
             detail=f"Failed to update alert: {str(e)}"
         )
 
-@router.get("/alerts/dashboard/stats", tags=["Alert"])
+@router.get("alerts/dashboard/stats", tags=["Alert"])
 async def get_alert_dashboard_stats(
     days: int = Query(7, description="Number of days for dashboard data"),
     db: Session = Depends(get_db)
@@ -296,7 +296,7 @@ async def get_alert_dashboard_stats(
         "generated_at": datetime.now().isoformat()
     }
 
-@router.get("/alerts/threat-types/list", tags=["Alert"])
+@router.get("alerts/threat-types/list", tags=["Alert"])
 async def get_available_threat_types(db: Session = Depends(get_db)):
     """Get list of all available threat types in the system"""
     

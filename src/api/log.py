@@ -1,32 +1,29 @@
-from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, status
 from sqlalchemy.orm import Session
 from src.core.database import get_db
 from src.models import Log  
 from src.schemas import LogCreate, LogUpdate 
 from src.services.anomaly_detector import LogAnomalyDetector
+from src.services import storage_service 
+import logging
 import json
 
 router = APIRouter()
 anomaly_detector = LogAnomalyDetector()
 
 
-@router.post("/logs/")
+@router.post("/logs")
 async def create_log(log: LogCreate, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
     
-    db_log = Log(
-        timestamp=log.timestamp,
-        source_type=log.source_type,
-        source_ip=log.source_ip,
-        data=log.data,
-        is_anomaly=False, 
-        anomaly_score=None,
-        threat_type="Normal" 
-    )
-    db.add(db_log)
-    db.commit()
-    db.refresh(db_log)
+    db_log = storage_service.store_log(db=db, log_data=log)
 
-    
+    if not db_log:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to store log entry in the database."
+        )
+
+    # Schedule the background task for anomaly detection
     background_tasks.add_task(
         anomaly_detector.detect_anomaly,
         log_data=log.data,
@@ -36,21 +33,22 @@ async def create_log(log: LogCreate, background_tasks: BackgroundTasks, db: Sess
     
     return {"status": "Log received and scheduled for analysis", "log_id": db_log.id}
 
-@router.get("/logs/", tags=["logs"])
+
+@router.get("logs/", tags=["logs"])
 async def read_all_logs(db: Session = Depends(get_db)):
     db_logs = db.query(Log).all()
     if not db_logs:
         raise HTTPException(status_code=404, detail="No logs found")
     return db_logs
 
-@router.get("/logs/{log_id}")
+@router.get("logs/{log_id}")
 async def read_log(log_id: int, db: Session = Depends(get_db)):
     db_log = db.query(Log).filter(Log.id == log_id).first()
     if db_log is None:
         raise HTTPException(status_code=404, detail="Log not found")
     return db_log
 
-@router.put("/logs/{log_id}")
+@router.put("logs/{log_id}")
 async def update_log(log_id: int, log: LogUpdate, db: Session = Depends(get_db)):
     db_log = db.query(Log).filter(Log.id == log_id).first()
     if db_log is None:
@@ -66,7 +64,7 @@ async def update_log(log_id: int, log: LogUpdate, db: Session = Depends(get_db))
 
 # New endpoints for anomaly detection
 
-@router.get("/anomalies/", tags=["anomalies"])
+@router.get("anomalies/", tags=["anomalies"])
 async def get_anomalies(threshold: float = 0.5, limit: int = 100, db: Session = Depends(get_db)):
     """Get logs that are marked as anomalies or have an anomaly score above threshold"""
     db_logs = db.query(Log).filter(
@@ -75,7 +73,7 @@ async def get_anomalies(threshold: float = 0.5, limit: int = 100, db: Session = 
     
     return db_logs
 
-@router.post("/analyze-existing/", tags=["anomalies"])
+@router.post("analyze-existing/", tags=["anomalies"])
 async def analyze_existing_logs(background_tasks: BackgroundTasks, threshold: float = 0.5, db: Session = Depends(get_db)):
     """Analyze existing logs that haven't been evaluated for anomalies yet"""
     # This will be executed in the background
