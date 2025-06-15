@@ -2,11 +2,8 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware 
 from src.api import  auth, log, alert, incident
 import uvicorn
-from src.core.database import engine, Base
 from src.middleware.logging_middleware import log_requests
 
-def init_db():
-    Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="Sentinel XDR Backend API")
 app.middleware("http")(log_requests) 
