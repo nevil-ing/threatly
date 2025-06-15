@@ -12,7 +12,7 @@ router = APIRouter()
 anomaly_detector = LogAnomalyDetector()
 
 
-@router.post("/logs")
+@router.post("/logs/")
 async def create_log(log: LogCreate, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
     
     db_log = storage_service.store_log(db=db, log_data=log)
