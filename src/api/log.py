@@ -23,7 +23,7 @@ async def create_log(log: LogCreate, background_tasks: BackgroundTasks, db: Sess
             detail="Failed to store log entry in the database."
         )
 
-    # Schedule the background task for anomaly detection
+    
     background_tasks.add_task(
         anomaly_detector.detect_anomaly,
         log_data=log.data,

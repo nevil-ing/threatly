@@ -44,13 +44,13 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: sentinel_xdr_migrate # Name is fine, it's for one-off runs
+    container_name: sentinel_xdr_migrate 
     env_file:
       - .env
     volumes:
-      - ./src:/app/src         # Alembic needs to see your models
-      - ./alembic:/app/alembic # Alembic needs its configuration and to write version files
-      # - ./scripts:/app/scripts # No longer needed if command is direct
+      - ./src:/app/src         
+      - ./alembic:/app/alembic
+      # - ./scripts:/app/scripts 
     depends_on:
       db:
         condition: service_healthy

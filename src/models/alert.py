@@ -12,7 +12,7 @@ class Alert(Base):
     severity = Column(String(20), nullable=False, index=True)  # Critical, High, Medium, Low
     status = Column(String(20), default="Open", index=True)  # Open, Investigating, Resolved, False Positive
     description = Column(Text, nullable=False)
-    confidence_score = Column(String(10), nullable=True)  # Store as string for flexibility
+    confidence_score = Column(String(30), nullable=True)  # Store as string for flexibility
     matched_patterns = Column(Text, nullable=True)  # JSON string of matched patterns
     source_ip = Column(String(45), nullable=True, index=True)  # IPv4/IPv6 support
     source_type = Column(String(50), nullable=True)
