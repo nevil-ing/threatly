@@ -1,4 +1,4 @@
-# teapec-backend/src/schemas/incident.py
+
 from pydantic import BaseModel, Field
 from typing import Optional, List, Dict, Any
 from datetime import datetime
@@ -29,7 +29,7 @@ class IncidentBase(BaseModel):
     description: str = Field(..., min_length=10)
     incident_type: str
     severity: IncidentSeverity
-    priority: str = Field(..., pattern="^P[1-4]$") # P1, P2, P3, P4
+    priority: str = Field(..., pattern="^P[1-4]$") 
     assigned_to: Optional[str] = None
     affected_systems: Optional[str] = None
     business_impact: Optional[str] = None
@@ -51,7 +51,7 @@ class IncidentUpdate(BaseModel):
     business_impact: Optional[str] = None
     estimated_cost: Optional[float] = None
 
-class IncidentResponse(IncidentBase): # This is what will be in the 'items' array
+class IncidentResponse(IncidentBase): 
     id: int
     status: IncidentStatus
     created_at: datetime
@@ -67,15 +67,13 @@ class IncidentResponse(IncidentBase): # This is what will be in the 'items' arra
     class Config:
         from_attributes = True
 
-# --- NEW PAGINATED SCHEMA ---
 class PaginatedIncidentResponse(BaseModel):
     items: List[IncidentResponse]
     total: int
     skip: int
     limit: int
-# --- END NEW PAGINATED SCHEMA ---
 
-# Action schemas (keep as is)
+
 class IncidentActionBase(BaseModel):
     action_type: str
     title: str = Field(..., min_length=5, max_length=200)
@@ -109,7 +107,7 @@ class IncidentActionResponse(IncidentActionBase):
     class Config:
         from_attributes = True
 
-# Timeline schemas (keep as is)
+
 class IncidentTimelineBase(BaseModel):
     event_type: str
     description: str
@@ -127,16 +125,15 @@ class IncidentTimelineResponse(IncidentTimelineBase):
     class Config:
         from_attributes = True
 
-# Detailed incident response (keep as is)
 class IncidentDetails(IncidentResponse):
     actions: List[IncidentActionResponse] = []
     timeline: List[IncidentTimelineResponse] = []
-    related_alerts: List[Dict[str, Any]] = [] # Or a more specific Alert schema
+    related_alerts: List[Dict[str, Any]] = []
     resolution_summary: Optional[str] = None
     root_cause: Optional[str] = None
     lessons_learned: Optional[str] = None
 
-# Statistics schema (keep as is)
+
 class IncidentStats(BaseModel):
     total_incidents: int
     open_incidents: int
@@ -145,4 +142,4 @@ class IncidentStats(BaseModel):
     sla_breach_rate: float
     incidents_by_type: Dict[str, int]
     incidents_by_severity: Dict[str, int]
-    recent_incidents: List[IncidentResponse] # This can stay for the dashboard stats specific endpoint
+    recent_incidents: List[IncidentResponse] 
