@@ -29,7 +29,10 @@ typing-extensions = "^4.0" # Many libraries depend on this implicitly
 pydantic-settings = "^2.8.1"
 torch = "^2.7.0"
 transformers = "^4.51.3"
-
+celery = "^5.4.0"
+redis = "^5.0.1"
+arq = "^0.26.3"
+watchfiles ="^1.1.0"
 [build-system] # <--- Keep this build system section
 requires = ["poetry-core>=1.0.0"] # Adjusted version constraint
 build-backend = "poetry.core.masonry.api"

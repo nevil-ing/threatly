@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator, ConfigDict
 from typing import Optional, List, Dict, Any
 from datetime import datetime
 from enum import Enum
@@ -42,7 +42,8 @@ class AlertBase(BaseModel):
     source_ip: Optional[str] = Field(None, description="Source IP address")
     source_type: Optional[str] = Field(None, description="Type of log source")
 
-    @validator('threat_type')
+    @field_validator('threat_type')
+    @classmethod
     def validate_threat_type(cls, v):
         if not v or v.strip() == "":
             raise ValueError('Threat type cannot be empty')
@@ -57,13 +58,16 @@ class AlertUpdate(BaseModel):
     assigned_to: Optional[str] = Field(None, max_length=100, description="Person assigned to handle the alert")
     resolution_notes: Optional[str] = Field(None, description="Notes about the resolution")
 
-    @validator('assigned_to')
+    @field_validator('assigned_to')
+    @classmethod
     def validate_assigned_to(cls, v):
         if v is not None and v.strip() == "":
             return None
         return v.strip() if v else None
 
 class AlertResponse(AlertBase):
+    model_config = ConfigDict(from_attributes=True)
+    
     id: int
     log_id: int
     status: AlertStatus
@@ -72,21 +76,26 @@ class AlertResponse(AlertBase):
     updated_at: datetime
     assigned_to: Optional[str] = None
     resolution_notes: Optional[str] = None
+
+# Add this new schema for paginated responses
+class PaginatedAlertResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
     
-    class Config:
-        from_attributes = True
+    alerts: List[AlertResponse]
+    total: int
+    skip: int
+    limit: int
 
 class AlertSummary(BaseModel):
     """Summary model for dashboard and statistics"""
+    model_config = ConfigDict(from_attributes=True)
+    
     id: int
     threat_type: str
     severity: AlertSeverity
     status: AlertStatus
     source_ip: Optional[str]
     created_at: datetime
-    
-    class Config:
-        from_attributes = True
 
 class ThreatTypeSummary(BaseModel):
     """Summary of alerts by threat type"""
@@ -115,7 +124,7 @@ class DashboardStats(BaseModel):
 
 # Bulk operations schemas
 class BulkAlertUpdate(BaseModel):
-    alert_ids: List[int] = Field(..., min_items=1, description="List of alert IDs to update")
+    alert_ids: List[int] = Field(..., min_length=1, description="List of alert IDs to update")
     status: Optional[AlertStatus] = None
     assigned_to: Optional[str] = None
     resolution_notes: Optional[str] = None

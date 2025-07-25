@@ -10,7 +10,7 @@ load_dotenv(dotenv_path=env_path)
 
 class Settings(BaseSettings):
     DATABASE_URL: str 
-    
+    REDIS_URL: str = os.getenv("REDIS_URL", "redis://localhost:6379/0")
  
     POSTGRES_DB: str = os.getenv("POSTGRES_DB", "sentinel_xdr_db") 
     POSTGRES_USER: str = os.getenv("POSTGRES_USER", "user")

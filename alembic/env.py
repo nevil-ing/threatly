@@ -31,7 +31,7 @@ try:
     import src.models.incident 
     import src.models.log  
    
-    print("Successfully imported model modules (alert, log)")
+    print("Successfully imported model modules (alert, log, incidents)")
 
     target_metadata = Base.metadata
     print("Assigned Base.metadata to target_metadata")

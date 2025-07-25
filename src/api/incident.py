@@ -23,7 +23,7 @@ router = APIRouter(prefix="/incidents", tags=["Incident Response"])
 async def create_incident(
     incident_data: IncidentCreate,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    #current_user: dict = Depends(get_current_user)
 ):
     """Create a new incident"""
     try:
@@ -48,7 +48,7 @@ async def get_incidents(
     assigned_to: Optional[str] = Query(None, description="Filter by assignee"),
     incident_type: Optional[str] = Query(None, description="Filter by incident type"),
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user) # Keep current_user if auth is needed for this endpoint
+   # current_user: dict = Depends(get_current_user) 
 ):
     """
     Get incidents with optional filters and pagination.
@@ -87,7 +87,7 @@ async def get_incidents(
 async def get_incident_details(
     incident_id: int,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+   # current_user: dict = Depends(get_current_user)
 ):
     """Get incident details with actions, timeline, and related alerts"""
     incident = IncidentService.get_incident_with_details(db, incident_id)
@@ -123,7 +123,7 @@ async def update_incident(
     incident_id: int,
     incident_data: IncidentUpdate,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+   #current_user: dict = Depends(get_current_user)
 ):
     """Update an incident"""
     updated_by = current_user.get("sub", "unknown")
@@ -145,7 +145,7 @@ async def close_incident(
     root_cause: str,
     lessons_learned: str,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+   # current_user: dict = Depends(get_current_user)
 ):
     """Close an incident with resolution details"""
     closed_by = current_user.get("sub", "unknown")
@@ -168,7 +168,7 @@ async def create_incident_action(
     incident_id: int,
     action_data: IncidentActionCreate,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+   # current_user: dict = Depends(get_current_user)
 ):
     """Create a new action for an incident"""
     # Set created_by from current user if not provided
@@ -188,7 +188,7 @@ async def create_incident_action(
 async def get_incident_actions(
     incident_id: int,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+   # current_user: dict = Depends(get_current_user)
 ):
     """Get all actions for an incident"""
     incident = IncidentService.get_incident(db, incident_id)
@@ -205,7 +205,7 @@ async def update_incident_action(
     action_id: int,
     action_data: IncidentActionUpdate,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    #current_user: dict = Depends(get_current_user)
 ):
     """Update an incident action"""
     updated_by = current_user.get("sub", "unknown")
@@ -226,7 +226,7 @@ async def add_timeline_entry(
     incident_id: int,
     timeline_data: IncidentTimelineCreate,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    #current_user: dict = Depends(get_current_user)
 ):
     """Add a timeline entry to an incident"""
     # Set created_by from current user if not provided
@@ -246,7 +246,7 @@ async def add_timeline_entry(
 async def get_incident_timeline(
     incident_id: int,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    #current_user: dict = Depends(get_current_user)
 ):
     """Get timeline for an incident"""
     incident = IncidentService.get_incident(db, incident_id)
@@ -265,7 +265,7 @@ async def get_incident_timeline(
 async def get_incident_dashboard(
     days: int = Query(30, ge=1, le=365),
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    #current_user: dict = Depends(get_current_user)
 ):
     """Get incident statistics for dashboard"""
     stats = IncidentService.get_incident_stats(db, days)
@@ -274,7 +274,7 @@ async def get_incident_dashboard(
 @router.get("/stats/summary")
 async def get_incident_summary(
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    #current_user: dict = Depends(get_current_user)
 ):
     """Get high-level incident summary"""
     from sqlalchemy import func
@@ -308,7 +308,7 @@ async def get_incident_summary(
 async def check_sla_breaches(
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    #current_user: dict = Depends(get_current_user)
 ):
     """Check for SLA breaches (admin only)"""
     # Add to background tasks to avoid blocking
@@ -319,7 +319,7 @@ async def check_sla_breaches(
 async def create_incident_from_alert(
     alert_id: int,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    #current_user: dict = Depends(get_current_user)
 ):
     """Create an incident from an alert"""
     from src.models.alert import Alert
@@ -344,7 +344,7 @@ async def create_incident_from_alert(
 
 @router.get("/types/list")
 async def get_incident_types(
-    current_user: dict = Depends(get_current_user)
+   # current_user: dict = Depends(get_current_user)
 ):
     """Get list of available incident types"""
     return {
@@ -368,7 +368,7 @@ async def get_incident_types(
 async def get_response_playbook(
     incident_type: str,
     severity: IncidentSeverity,
-    current_user: dict = Depends(get_current_user)
+   # current_user: dict = Depends(get_current_user)
 ):
     """Get response playbook for incident type and severity"""
     # This would typically come from a database or configuration
@@ -456,7 +456,7 @@ async def bulk_assign_incidents(
     incident_ids: List[int],
     assigned_to: str,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    #current_user: dict = Depends(get_current_user)
 ):
     """Bulk assign incidents to a user"""
     updated_by = current_user.get("sub", "unknown")
@@ -478,7 +478,7 @@ async def bulk_update_status(
     incident_ids: List[int],
     status: IncidentStatus,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    #current_user: dict = Depends(get_current_user)
 ):
     """Bulk update incident status"""
     updated_by = current_user.get("sub", "unknown")
@@ -503,7 +503,7 @@ async def get_monthly_report(
     year: int = Query(..., ge=2020),
     month: int = Query(..., ge=1, le=12),
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    #current_user: dict = Depends(get_current_user)
 ):
     """Get monthly incident report"""
     from datetime import datetime, timedelta
@@ -581,7 +581,7 @@ async def export_incidents(
     end_date: datetime = Query(...),
     format: str = Query("json", regex="^(json|csv)$"),
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+   # current_user: dict = Depends(get_current_user)
 ):
     """Export incidents data"""
     from src.models.incident import Incident
@@ -668,7 +668,7 @@ async def search_incidents(
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    #current_user: dict = Depends(get_current_user)
 ):
     """Search incidents by title, description, or related data"""
     from src.models.incident import Incident
@@ -695,7 +695,7 @@ async def search_incidents(
 @router.get("/filters/options")
 async def get_filter_options(
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    #current_user: dict = Depends(get_current_user)
 ):
     """Get available filter options for incidents"""
     from src.models.incident import Incident
@@ -721,7 +721,7 @@ async def get_filter_options(
 async def get_performance_metrics(
     days: int = Query(30, ge=1, le=365),
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+   # current_user: dict = Depends(get_current_user)
 ):
     """Get incident response performance metrics"""
     from datetime import datetime, timedelta
@@ -803,7 +803,7 @@ async def get_performance_metrics(
 @router.get("/metrics/workload")
 async def get_workload_metrics(
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    #current_user: dict = Depends(get_current_user)
 ):
     """Get current workload distribution"""
     from src.models.incident import Incident
@@ -862,7 +862,7 @@ async def send_incident_notification(
     message: str = "",
     recipients: List[str] = [],
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+   # current_user: dict = Depends(get_current_user)
 ):
     """Send notification about incident"""
     incident = IncidentService.get_incident(db, incident_id)
@@ -898,7 +898,7 @@ async def send_incident_notification(
 
 @router.get("/templates/incident-types")
 async def get_incident_templates(
-    current_user: dict = Depends(get_current_user)
+   # current_user: dict = Depends(get_current_user)
 ):
     """Get incident creation templates"""
     templates = {
@@ -942,7 +942,7 @@ async def get_incident_templates(
 async def get_action_templates(
     incident_type: str,
     severity: IncidentSeverity,
-    current_user: dict = Depends(get_current_user)
+    #current_user: dict = Depends(get_current_user)
 ):
     """Get action templates for incident type"""
     action_templates = {
@@ -1029,7 +1029,7 @@ async def create_jira_ticket(
     project_key: str,
     issue_type: str = "Bug",
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    #current_user: dict = Depends(get_current_user)
 ):
     """Create JIRA ticket for incident (placeholder for integration)"""
     incident = IncidentService.get_incident(db, incident_id)
@@ -1068,7 +1068,7 @@ async def create_slack_channel(
     incident_id: int,
     channel_name: str = None,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    #current_user: dict = Depends(get_current_user)
 ):
     """Create Slack channel for incident coordination"""
     incident = IncidentService.get_incident(db, incident_id)
@@ -1111,7 +1111,7 @@ async def trigger_automated_containment(
     incident_id: int,
     containment_actions: List[str],
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+   # current_user: dict = Depends(get_current_user)
 ):
     """Trigger automated containment actions"""
     incident = IncidentService.get_incident(db, incident_id)
@@ -1158,7 +1158,7 @@ async def trigger_automated_containment(
 async def check_compliance_requirements(
     incident_id: int,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    #current_user: dict = Depends(get_current_user)
 ):
     """Check compliance requirements for incident"""
     incident = IncidentService.get_incident(db, incident_id)
@@ -1206,7 +1206,7 @@ async def check_compliance_requirements(
 async def get_incident_audit_trail(
     incident_id: int,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    #current_user: dict = Depends(get_current_user)
 ):
     """Get complete audit trail for incident"""
     incident = IncidentService.get_incident_with_details(db, incident_id)

@@ -56,7 +56,7 @@ class ThreatPatternClassifier:
                     "patterns": [
                         r"(?i)(<script[^>]*>.*</script>|<script[^>]*>)",
                         r"(?i)(javascript\s*:|vbscript\s*:)",
-                        r"(?i)(on\w+\s*=\s*[\"'].*[\"'])",  # onerror, onload, etc.
+                        r"(?i)(on\w+\s*=\s*[\"'].*[\"'])", 
                         r"(?i)(alert\s*\(|confirm\s*\(|prompt\s*\()",
                         r"(?i)(document\.(cookie|domain|location))",
                         r"(?i)(<iframe[^>]*>|<embed[^>]*>|<object[^>]*>)",
@@ -111,7 +111,7 @@ class ThreatPatternClassifier:
                         r"(?i)(password\s+spray|credential\s+stuffing)"
                     ],
                     "weight": 0.8,
-                    "frequency_threshold": 5  # Multiple occurrences increase confidence
+                    "frequency_threshold": 5 
                 }
             ],
             
@@ -184,7 +184,7 @@ class ThreatPatternClassifier:
         Returns:
             Dict containing threat classification results
         """
-        # URL decode the message to catch encoded attacks
+        # URL decode the message to catch encoded 
         decoded_message = unquote(log_message)
         
         threat_scores = {}
