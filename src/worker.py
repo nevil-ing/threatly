@@ -26,8 +26,7 @@ if not MODEL_API_URL:
     logger.error("MODEL_API_URL environment variable is not set!")
     raise ValueError("MODEL_API_URL is required for anomaly detection")
 
-# --- ARQ Task Definitions ---
-# These are just simple async functions. The first argument `ctx` is required by ARQ.
+# ARQ Task Definition
 
 async def detect_anomaly_task(ctx, log_data: dict, log_id: int):
     """
