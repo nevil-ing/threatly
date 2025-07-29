@@ -207,8 +207,7 @@ async def analyze_logs_batch_task(ctx, threshold: float = 0.5):
         db.close()
 
 
-# --- ARQ Worker Configuration ---
-# This class replaces celery.py and the celery-beat service.
+# ARQ Worker Configuration
 class WorkerSettings:
     # List of functions that this worker can execute.
     functions = [detect_anomaly_task, analyze_logs_batch_task]
@@ -226,12 +225,3 @@ class WorkerSettings:
     # Health check settings
     health_check_interval = 30
     health_check_key = "arq:health"
-
-    # This replaces Celery Beat! It's built right into the worker.
-    #cron_jobs = [
-     #   cron(
-      #      analyze_logs_batch_task,  # The function to run            # Pass threshold parameter
-       #     minute={0, 15, 30, 45},   # Run every 15 minutes for batch processing
-        #    run_at_startup=True       # Run once immediately when the worker starts
-        #)
-    #]
