@@ -14,3 +14,5 @@ class ProcessedLog(Base):
     is_anomaly = Column(Boolean, default=False)
     anomaly_score = Column(Float, nullable=True)
     threat_type = Column(String, nullable=True, default = "Normal")
+    
+    alerts = relationship("Alert", back_populates="log")

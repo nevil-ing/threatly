@@ -24,6 +24,8 @@ class Alert(Base):
     # Relationships
     log = relationship("Log", back_populates="alerts")
     incidents = relationship("Incident", secondary="incident_alerts", back_populates="alerts")
+    compliance = relationship("ComplianceReport", uselist=False, back_populates="alert")
+
     
     def __repr__(self):
         return f"<Alert(id={self.id}, threat_type='{self.threat_type}', severity='{self.severity}', status='{self.status}')>"
