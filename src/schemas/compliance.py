@@ -1,22 +1,33 @@
-from pydantic import BaseModel
+# src/schemas/compliance.py
+from pydantic import BaseModel, Field
 from typing import Optional
 from datetime import datetime
+from src.models.compliance import ReportStatus # Import the enum
 
-class ComplianceReportCreate(BaseModel):
-    log_id: Optional[int]
-    alert_id: Optional[int]
-    compliance_type: Optional[str] = "General"
-    input_data: str
+# --- Utility for camelCase ---
+def to_camel(string: str) -> str:
+    words = string.split('_')
+    return words[0] + ''.join(word.capitalize() for word in words[1:])
 
-class ComplianceReportRead(BaseModel):
+# --- Schemas ---
+class ComplianceReportBase(BaseModel):
+    framework: str = Field(..., description="The compliance framework to analyze against (e.g., GDPR, ISO27001)")
+    alert_id: int = Field(..., gt=0, description="The ID of the alert to analyze")
+
+class ComplianceReportCreate(ComplianceReportBase):
+    pass
+
+class ComplianceReportResponse(ComplianceReportBase):
     id: int
-    log_id: Optional[int]
-    alert_id: Optional[int]
-    compliance_type: Optional[str]
-    input_data: str
-    result_summary: str
-    is_violation: bool
+    status: ReportStatus
+    is_violation: Optional[bool] = None
+    summary: Optional[str] = None
+    violation_details: Optional[str] = None
+    recommended_actions: Optional[str] = None
     created_at: datetime
+    completed_at: Optional[datetime] = None
 
     class Config:
-        orm_mode = True
+        orm_mode = True # For Pydantic v1
+        alias_generator = to_camel
+        allow_population_by_field_name = True

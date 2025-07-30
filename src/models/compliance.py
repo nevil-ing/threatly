@@ -1,22 +1,35 @@
-from sqlalchemy import Column, Integer, String, Text, DateTime, Boolean, ForeignKey
+from sqlalchemy import Column, Integer, String, Text, DateTime, Boolean, ForeignKey, Enum
 from sqlalchemy.orm import relationship
 from datetime import datetime
+import enum
 from src.core.database import Base
+
+# Enum for the status of the report generation
+class ReportStatus(str, enum.Enum):
+    PENDING = "Pending"
+    PROCESSING = "Processing"
+    COMPLETED = "Completed"
+    FAILED = "Failed"
 
 class ComplianceReport(Base):
     __tablename__ = "compliance_reports"
 
     id = Column(Integer, primary_key=True, index=True)
-    alert_id = Column(Integer, ForeignKey("alerts.id"), nullable=True)
-    log_id = Column(Integer, ForeignKey("logs.id"), nullable=True)
-
-    compliance_type = Column(String(100))  # e.g. "GDPR", "ISO27001"
-    input_data = Column(Text, nullable=False)  # Raw text analyzed
-    result_summary = Column(Text)
-    is_violation = Column(Boolean, default=False)
-
+    alert_id = Column(Integer, ForeignKey("alerts.id"), nullable=False, index=True)
+    
+    # Framework and Status
+    framework = Column(String(50), nullable=False, index=True)  # e.g., "GDPR", "ISO27001"
+    status = Column(Enum(ReportStatus), default=ReportStatus.PENDING, nullable=False, index=True)
+    
+    # Results
+    is_violation = Column(Boolean, nullable=True) # Nullable until analysis is complete
+    summary = Column(Text, nullable=True) # High-level summary from the LLM
+    violation_details = Column(Text, nullable=True) # Specific details about the violation
+    recommended_actions = Column(Text, nullable=True) # Actions suggested by the LLM
+    
+    # Timestamps
     created_at = Column(DateTime, default=datetime.utcnow)
-
+    completed_at = Column(DateTime, nullable=True) # When the analysis finished
+    
     # Relationships
-    alert = relationship("Alert", back_populates="compliance")
-    log = relationship("Log")
+    alert = relationship("Alert")

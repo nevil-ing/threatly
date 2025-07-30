@@ -7,11 +7,13 @@ from arq.connections import RedisSettings
 from sqlalchemy.orm import Session
 from src.core.database import get_db
 from src.models import Log
-
+from src.models import Alert, ComplianceReport
+from src.core.database import get_db
+from src.services.compliance_service import run_compliance_analysis_task
 # Helper classes (can be moved to a shared location)
 from src.services.alerting import trigger_alert
 from src.services.threat_classifier import ThreatPatternClassifier
-
+from src.core.database import SessionLocal
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -205,12 +207,33 @@ async def analyze_logs_batch_task(ctx, threshold: float = 0.5):
         logger.info(f"Finished batch analysis for {len(unscored_logs)} logs.")
     finally:
         db.close()
-
-
+        
+        
+async def compliance_analysis_arq_task(ctx, report_id: int):
+    """
+    ARQ wrapper for the synchronous compliance analysis service function.
+    Manages the database session for the task.
+    """
+    logger.info(f"Compliance task started for report ID: {report_id}")
+    db: Session = SessionLocal()
+    try:
+        # We call the synchronous service function here.
+        # ARQ will run this in a thread pool, preventing it from blocking the event loop.
+        run_compliance_analysis_task(report_id=report_id, db=db)
+        logger.info(f"Compliance task finished successfully for report ID: {report_id}")
+        return {"status": "success", "report_id": report_id}
+    except Exception as e:
+        logger.error(f"Compliance task failed for report ID {report_id}: {e}", exc_info=True)
+        # Optionally, update the report status to FAILED here if not handled in the service
+        return {"status": "error", "report_id": report_id, "error": str(e)}
+    finally:
+        db.close()
+        
+        
 # ARQ Worker Configuration
 class WorkerSettings:
     # List of functions that this worker can execute.
-    functions = [detect_anomaly_task, analyze_logs_batch_task]
+    functions = [detect_anomaly_task, analyze_logs_batch_task, compliance_analysis_arq_task ]
     
     # Redis connection settings, read from environment or default to 'redis'.
     redis_settings = RedisSettings.from_dsn(os.getenv("REDIS_URL", "redis://redis:6379/0"))
