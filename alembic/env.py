@@ -30,8 +30,9 @@ try:
     import src.models.alert 
     import src.models.incident 
     import src.models.log  
+    import src.models.compliance
    
-    print("Successfully imported model modules (alert, log, incidents)")
+    print("Successfully imported model modules (alert, log, incidents, compliance)")
 
     target_metadata = Base.metadata
     print("Assigned Base.metadata to target_metadata")
