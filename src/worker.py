@@ -7,7 +7,8 @@ from arq.connections import RedisSettings
 from sqlalchemy.orm import Session
 from src.core.database import get_db
 from src.models import Log
-from src.models import Alert, ComplianceReport
+from src.models import Alert
+from src.models import compliance 
 from src.core.database import get_db
 from src.services.compliance_service import run_compliance_analysis_task
 # Helper classes (can be moved to a shared location)
