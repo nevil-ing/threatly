@@ -33,6 +33,7 @@ celery = "^5.4.0"
 redis = "^5.0.1"
 arq = "^0.26.3"
 watchfiles ="^1.1.0"
+huggingface-hub = {extras = ["hf-transfer"], version = "^0.34.3"}
 [build-system] # <--- Keep this build system section
 requires = ["poetry-core>=1.0.0"] # Adjusted version constraint
 build-backend = "poetry.core.masonry.api"
