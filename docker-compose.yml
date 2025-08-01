@@ -1,4 +1,6 @@
-# Definitive docker-compose.yml
+# Updated docker-compose.yml with Mistral AI support
+version: '3.8'
+
 services:
   backend:
     build:
@@ -12,6 +14,8 @@ services:
     volumes:
       - ./src:/app/src
       - ./alembic:/app/alembic
+      # Cache volume for Hugging Face models
+      - hf_cache:/root/.cache/huggingface
     depends_on:
       db:
         condition: service_healthy
@@ -20,8 +24,8 @@ services:
     environment:
       - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
       - REDIS_URL=redis://redis:6379/0
+      - HUGGING_FACE_TOKEN=${HUGGING_FACE_TOKEN}
     command: ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000"]
-    # --- FIX: Healthcheck removed to prevent the restart loop ---
 
   db:
     image: postgres:15
@@ -35,7 +39,6 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     ports:
       - "5433:5432"
-    # This healthcheck is reliable and is kept
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
       interval: 5s
@@ -58,7 +61,6 @@ services:
     environment:
       - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
     command: ["alembic", "upgrade", "head"]
-    # --- FIX: Added profile so it's ignored by 'docker compose up' ---
     profiles:
       - migration
 
@@ -68,7 +70,10 @@ services:
     restart: unless-stopped
     ports:
       - "6379:6379"
-    # This healthcheck is reliable and is kept
+    # Add persistence for Redis
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -84,8 +89,8 @@ services:
     restart: unless-stopped
     ports:
       - "8080:8080"
-    # --- FIX: Healthcheck removed to prevent the restart loop ---
-    # Model loading is slow and makes health checks unreliable.
+    volumes:
+      - hf_cache:/root/.cache/huggingface
 
   arq_worker:
     build:
@@ -96,6 +101,8 @@ services:
     env_file: .env
     volumes:
       - ./src:/app/src
+      # Share Hugging Face cache with other services
+      - hf_cache:/root/.cache/huggingface
     depends_on:
       redis:
         condition: service_healthy
@@ -106,8 +113,55 @@ services:
       - REDIS_URL=redis://redis:6379/0
       - MODEL_API_URL=http://model-api:8080/infer
       - HUGGING_FACE_TOKEN=${HUGGING_FACE_TOKEN}
+    # Optimized for 8GB ARM VPS - conservative memory limits
+    deploy:
+      resources:
+        limits:
+          memory: 2G  # Much lower limit for ARM VPS
+        reservations:
+          memory: 1G  # Conservative reservation
+    # Smaller shared memory for lightweight models
+    shm_size: 512mb
     command: ["arq", "src.worker.WorkerSettings"]
+
+  # Optional: Add a compliance API service for direct testing (lightweight)
+  compliance-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: sentinel_xdr_compliance_api
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      - "8081:8081"
+    volumes:
+      - ./src:/app/src
+      - hf_cache:/root/.cache/huggingface
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      - REDIS_URL=redis://redis:6379/0
+      - HUGGING_FACE_TOKEN=${HUGGING_FACE_TOKEN}
+    # Conservative limits for 8GB ARM VPS
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+        reservations:
+          memory: 1G
+    shm_size: 512mb
+    command: ["python", "-m", "src.compliance_api"]
+    profiles:
+      - compliance
 
 volumes:
   postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  hf_cache:
     driver: local

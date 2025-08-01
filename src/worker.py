@@ -5,16 +5,13 @@ import logging
 from arq import cron
 from arq.connections import RedisSettings
 from sqlalchemy.orm import Session
-from src.core.database import get_db
-from src.models import Log
-from src.models import Alert
+from src.core.database import get_db, SessionLocal
+from src.models import Log, Alert
 from src.models import compliance 
-from src.core.database import get_db
 from src.services.compliance_service import run_compliance_analysis_task
-# Helper classes (can be moved to a shared location)
 from src.services.alerting import trigger_alert
 from src.services.threat_classifier import ThreatPatternClassifier
-from src.core.database import SessionLocal
+
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -29,7 +26,7 @@ if not MODEL_API_URL:
     logger.error("MODEL_API_URL environment variable is not set!")
     raise ValueError("MODEL_API_URL is required for anomaly detection")
 
-# ARQ Task Definition
+# ARQ Task Definitions
 
 async def detect_anomaly_task(ctx, log_data: dict, log_id: int):
     """
@@ -209,43 +206,132 @@ async def analyze_logs_batch_task(ctx, threshold: float = 0.5):
     finally:
         db.close()
         
-        
+
 async def compliance_analysis_arq_task(ctx, report_id: int):
     """
     ARQ wrapper for the synchronous compliance analysis service function.
     Manages the database session for the task.
     """
-    logger.info(f"Compliance task started for report ID: {report_id}")
+    logger.info(f"🔍 Compliance task started for report ID: {report_id}")
+    
+    # Create a fresh database session for this task
     db: Session = SessionLocal()
+    
     try:
-        # We call the synchronous service function here.
-        # ARQ will run this in a thread pool, preventing it from blocking the event loop.
+        # Call the improved compliance analysis service
         run_compliance_analysis_task(report_id=report_id, db=db)
-        logger.info(f"Compliance task finished successfully for report ID: {report_id}")
+        logger.info(f"✅ Compliance task finished successfully for report ID: {report_id}")
         return {"status": "success", "report_id": report_id}
+        
     except Exception as e:
-        logger.error(f"Compliance task failed for report ID {report_id}: {e}", exc_info=True)
-        # Optionally, update the report status to FAILED here if not handled in the service
+        logger.error(f"❌ Compliance task failed for report ID {report_id}: {e}", exc_info=True)
+        
+        # Try to update the report status to FAILED if possible
+        try:
+            from src.models.compliance import ComplianceReport, ReportStatus
+            report = db.query(ComplianceReport).filter(ComplianceReport.id == report_id).first()
+            if report:
+                report.status = ReportStatus.FAILED
+                report.summary = f"Task execution failed: {str(e)}"
+                db.commit()
+                logger.info(f"Updated report {report_id} status to FAILED")
+        except Exception as update_error:
+            logger.error(f"Failed to update report status: {update_error}")
+        
         return {"status": "error", "report_id": report_id, "error": str(e)}
+        
     finally:
         db.close()
+
+
+# Optional: Add a periodic task to retry failed compliance reports
+async def retry_failed_compliance_reports(ctx):
+    """
+    Periodic task to retry failed compliance reports
+    """
+    logger.info("🔄 Checking for failed compliance reports to retry...")
+    
+    db: Session = SessionLocal()
+    try:
+        from src.models.compliance import ComplianceReport, ReportStatus
+        from datetime import datetime, timedelta
         
+        # Find failed reports older than 1 hour
+        cutoff_time = datetime.utcnow() - timedelta(hours=1)
+        failed_reports = db.query(ComplianceReport).filter(
+            ComplianceReport.status == ReportStatus.FAILED,
+            ComplianceReport.updated_at < cutoff_time
+        ).limit(5).all()  # Limit to 5 retries per run
         
+        if not failed_reports:
+            logger.info("No failed compliance reports to retry")
+            return {"status": "no_retries_needed"}
+        
+        logger.info(f"Found {len(failed_reports)} failed reports to retry")
+        
+        retry_count = 0
+        for report in failed_reports:
+            try:
+                # Reset status to PENDING
+                report.status = ReportStatus.PENDING
+                report.summary = None
+                db.commit()
+                
+                # Enqueue the task again
+                await ctx['redis'].enqueue_job(
+                    'compliance_analysis_arq_task',
+                    report.id,
+                    _job_timeout=300  # 5 minutes timeout
+                )
+                
+                retry_count += 1
+                logger.info(f"Retrying compliance analysis for report {report.id}")
+                
+            except Exception as e:
+                logger.error(f"Failed to retry report {report.id}: {e}")
+                continue
+        
+        return {"status": "success", "retried_count": retry_count}
+        
+    except Exception as e:
+        logger.error(f"Error in retry_failed_compliance_reports: {e}")
+        return {"status": "error", "error": str(e)}
+    finally:
+        db.close()
+
+
 # ARQ Worker Configuration
 class WorkerSettings:
-    # List of functions that this worker can execute.
-    functions = [detect_anomaly_task, analyze_logs_batch_task, compliance_analysis_arq_task ]
+    """
+    Optimized ARQ worker configuration for real-time processing and compliance analysis
+    """
+    # List of functions that this worker can execute
+    functions = [
+        detect_anomaly_task, 
+        analyze_logs_batch_task, 
+        compliance_analysis_arq_task,
+        retry_failed_compliance_reports
+    ]
     
-    # Redis connection settings, read from environment or default to 'redis'.
+    # Redis connection settings
     redis_settings = RedisSettings.from_dsn(os.getenv("REDIS_URL", "redis://redis:6379/0"))
     
     # OPTIMIZED FOR REAL-TIME PROCESSING
     max_jobs = 20               # Allow more concurrent jobs for real-time processing
-    job_timeout = 30            # Shorter timeout for real-time (30 seconds)
-    keep_result = 300           # Keep results for 5 minutes (shorter for real-time)
+    job_timeout = 300           # 5 minutes timeout for compliance tasks
+    keep_result = 600           # Keep results for 10 minutes
     poll_delay = 0.5            # Check for new jobs every 0.5 seconds (faster polling)
-    queue_read_timeout = 1      # Shorter queue read timeout for responsiveness
+    queue_read_timeout = 2      # Slightly longer queue read timeout
     
     # Health check settings
     health_check_interval = 30
     health_check_key = "arq:health"
+    
+    # Cron jobs for periodic tasks
+    cron_jobs = [
+        # Retry failed compliance reports every hour
+        cron(retry_failed_compliance_reports, hour=None, minute=0),  # Every hour
+        
+        # Batch analysis of unscored logs every 15 minutes
+        cron(analyze_logs_batch_task, minute={0, 15, 30, 45})  # Every 15 minutes
+    ]
