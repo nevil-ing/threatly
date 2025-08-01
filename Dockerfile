@@ -30,7 +30,7 @@ COPY pyproject.toml poetry.lock ./
 
 # Generate lock file and install dependencies
 RUN poetry lock
-RUN poetry install --no-root --sync --no-dev
+RUN poetry install --without dev --sync
 
 FROM python:3.13-slim-bullseye as runtime
 
