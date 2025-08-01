@@ -4,7 +4,7 @@ from datetime import datetime
 import enum
 from src.core.database import Base
 
-# Enum for the status of the report generation
+
 class ReportStatus(str, enum.Enum):
     PENDING = "Pending"
     PROCESSING = "Processing"

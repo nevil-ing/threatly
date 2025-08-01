@@ -6,12 +6,13 @@ from datetime import datetime
 from sqlalchemy.orm import Session
 from src.models.alert import Alert
 from src.models.compliance import ComplianceReport, ReportStatus
+import os
 
 # --- LLM and Tokenizer Setup ---
-# This is okay for a single worker, but for scaling, consider a dedicated inference server.
-tokenizer = AutoTokenizer.from_pretrained("mistralai/Mistral-7B-Instruct-v0.2")
-model = AutoModelForCausalLM.from_pretrained("mistralai/Mistral-7B-Instruct-v0.2")
-model.to("cpu") # Use "cuda" if you have a GPU
+HF_TOKEN = os.getenv("HUGGING_FACE_TOKEN")
+tokenizer = AutoTokenizer.from_pretrained("mistralai/Mistral-7B-Instruct-v0.2", token = HF_TOKEN)
+model = AutoModelForCausalLM.from_pretrained("mistralai/Mistral-7B-Instruct-v0.2", token = HF_TOKEN)
+model.to("cpu") 
 
 # --- THE BACKGROUND TASK ---
 def run_compliance_analysis_task(report_id: int, db: Session):
