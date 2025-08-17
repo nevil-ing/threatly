@@ -4,7 +4,7 @@ import json
 import logging
 import os
 from datetime import datetime
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 from sqlalchemy.orm import Session
 from transformers import AutoTokenizer, AutoModelForCausalLM
 import torch
@@ -36,12 +36,12 @@ class ComplianceAnalyzer:
     def _load_model(self):
         """Load a lightweight model suitable for ARM VPS with 8GB RAM"""
         try:
-            # Use a much smaller model that fits in 8GB RAM
+            # Use models better suited for text generation and analysis
             # Options in order of preference for ARM/low-memory systems:
             model_options = [
-                "microsoft/DialoGPT-small",  # ~117MB - Very lightweight
-                "distilbert/distilgpt2",     # ~82MB - Ultra lightweight
-                "gpt2",                      # ~548MB - Still manageable
+                "microsoft/DialoGPT-small",  # ~117MB - Conversational but can work
+                "gpt2",                      # ~548MB - Better for text generation
+                "distilgpt2",                # ~353MB - Smaller GPT-2 variant
             ]
             
             self.HF_TOKEN = os.getenv("HUGGING_FACE_TOKEN")
@@ -65,13 +65,14 @@ class ComplianceAnalyzer:
                 self.model = AutoModelForCausalLM.from_pretrained(
                     model_name,
                     token=self.HF_TOKEN if self.HF_TOKEN else None,
-                    torch_dtype=torch.float32,  # Use float32 for CPU
+                    torch_dtype=torch.float32,  
                     low_cpu_mem_usage=True,     # Optimize for low memory
                     trust_remote_code=True
                 )
                 
-                # Always use CPU for ARM VPS
+                
                 self.model.to("cpu")
+                self.model_name = model_name  # Store for status reporting
                 logger.info(f"Model {model_name} loaded successfully on CPU")
                 
                 # Set model to evaluation mode to save memory
@@ -94,6 +95,7 @@ class ComplianceAnalyzer:
                 )
                 self.model.to("cpu")
                 self.model.eval()
+                self.model_name = fallback_model  # Store fallback model name
                 logger.info(f"Fallback model {fallback_model} loaded successfully")
             
         except Exception as e:
@@ -137,17 +139,23 @@ class ComplianceAnalyzer:
             
             # Generate response with conservative settings
             with torch.no_grad():
-                outputs = self.model.generate(
-                    **inputs,
-                    max_new_tokens=256,  # Reduced for memory
-                    do_sample=True,
-                    temperature=0.7,
-                    top_p=0.9,
-                    pad_token_id=self.tokenizer.pad_token_id,
-                    eos_token_id=self.tokenizer.eos_token_id,
-                    repetition_penalty=1.1,
-                    no_repeat_ngram_size=2
-                )
+                try:
+                    outputs = self.model.generate(
+                        **inputs,
+                        max_new_tokens=256,  # Reduced for memory
+                        do_sample=True,
+                        temperature=0.7,
+                        top_p=0.9,
+                        pad_token_id=self.tokenizer.pad_token_id,
+                        eos_token_id=self.tokenizer.eos_token_id,
+                        repetition_penalty=1.1,
+                        no_repeat_ngram_size=2
+                    )
+                except RuntimeError as e:
+                    if "out of memory" in str(e).lower():
+                        logger.warning("GPU/CPU memory exhausted, falling back to rule-based analysis")
+                        return self._rule_based_analysis(alert, framework)
+                    raise
             
             # Decode the response
             generated_text = self.tokenizer.decode(outputs[0], skip_special_tokens=True)
@@ -379,6 +387,28 @@ Do not include any text before or after the JSON object. [/INST]
             "ISO27001": "1. Activate incident response plan; 2. Review and update risk assessment; 3. Implement corrective actions"
         }
         return recommendations.get(framework, recommendations["NIST"])
+
+    def cleanup_memory(self):
+        """Clean up model memory when needed"""
+        try:
+            if hasattr(self, 'model') and self.model is not None:
+                del self.model
+            if hasattr(self, 'tokenizer') and self.tokenizer is not None:
+                del self.tokenizer
+            
+            # Force garbage collection
+            import gc
+            gc.collect()
+            
+            # Clear CUDA cache if available
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+                
+            logger.info("Model memory cleaned up successfully")
+        except Exception as e:
+            logger.warning(f"Error during memory cleanup: {e}")
+
+    def _extract_fields_manually(self, text: str) -> Dict[str, Any]:
         """Manual field extraction as fallback"""
         result = {
             "isViolation": True,  # Conservative default
@@ -461,6 +491,257 @@ def run_compliance_analysis_task(report_id: int, db: Session):
         logger.info(f"Compliance analysis task completed for report ID: {report_id}")
 
 
+# Report generation and utility functions
+def generate_compliance_report_pdf(report: ComplianceReport) -> bytes:
+    """Generate a PDF report for compliance analysis"""
+    try:
+        from reportlab.lib.pagesizes import letter, A4
+        from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+        from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+        from reportlab.lib.units import inch
+        from reportlab.lib import colors
+        from io import BytesIO
+        
+        buffer = BytesIO()
+        doc = SimpleDocTemplate(buffer, pagesize=A4)
+        styles = getSampleStyleSheet()
+        story = []
+        
+        # Title
+        title_style = ParagraphStyle(
+            'CustomTitle',
+            parent=styles['Heading1'],
+            fontSize=18,
+            spaceAfter=30,
+            textColor=colors.darkblue
+        )
+        story.append(Paragraph(f"Compliance Analysis Report - {report.framework}", title_style))
+        story.append(Spacer(1, 12))
+        
+        # Report metadata
+        metadata_data = [
+            ['Report ID:', str(report.id)],
+            ['Framework:', report.framework],
+            ['Status:', report.status.value],
+            ['Created:', report.created_at.strftime('%Y-%m-%d %H:%M:%S UTC')],
+            ['Completed:', report.completed_at.strftime('%Y-%m-%d %H:%M:%S UTC') if report.completed_at else 'N/A'],
+            ['Violation Detected:', 'Yes' if report.is_violation else 'No']
+        ]
+        
+        metadata_table = Table(metadata_data, colWidths=[2*inch, 4*inch])
+        metadata_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (0, -1), colors.lightgrey),
+            ('TEXTCOLOR', (0, 0), (-1, -1), colors.black),
+            ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+            ('FONTNAME', (0, 0), (-1, -1), 'Helvetica'),
+            ('FONTSIZE', (0, 0), (-1, -1), 10),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 12),
+            ('GRID', (0, 0), (-1, -1), 1, colors.black)
+        ]))
+        
+        story.append(metadata_table)
+        story.append(Spacer(1, 20))
+        
+        # Alert information
+        if report.alert:
+            story.append(Paragraph("Alert Information", styles['Heading2']))
+            alert_data = [
+                ['Alert ID:', str(report.alert.id)],
+                ['Threat Type:', report.alert.threat_type or 'N/A'],
+                ['Severity:', report.alert.severity or 'N/A'],
+                ['Source IP:', report.alert.source_ip or 'N/A'],
+                ['Description:', report.alert.description or 'N/A']
+            ]
+            
+            alert_table = Table(alert_data, colWidths=[2*inch, 4*inch])
+            alert_table.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (0, -1), colors.lightgrey),
+                ('TEXTCOLOR', (0, 0), (-1, -1), colors.black),
+                ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                ('FONTNAME', (0, 0), (-1, -1), 'Helvetica'),
+                ('FONTSIZE', (0, 0), (-1, -1), 10),
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 12),
+                ('GRID', (0, 0), (-1, -1), 1, colors.black)
+            ]))
+            
+            story.append(alert_table)
+            story.append(Spacer(1, 20))
+        
+        # Analysis results
+        story.append(Paragraph("Analysis Results", styles['Heading2']))
+        
+        if report.summary:
+            story.append(Paragraph("Summary:", styles['Heading3']))
+            story.append(Paragraph(report.summary, styles['Normal']))
+            story.append(Spacer(1, 12))
+        
+        if report.violation_details:
+            story.append(Paragraph("Violation Details:", styles['Heading3']))
+            story.append(Paragraph(report.violation_details, styles['Normal']))
+            story.append(Spacer(1, 12))
+        
+        if report.recommended_actions:
+            story.append(Paragraph("Recommended Actions:", styles['Heading3']))
+            story.append(Paragraph(report.recommended_actions, styles['Normal']))
+            story.append(Spacer(1, 12))
+        
+        # Footer
+        story.append(Spacer(1, 30))
+        footer_style = ParagraphStyle(
+            'Footer',
+            parent=styles['Normal'],
+            fontSize=8,
+            textColor=colors.grey
+        )
+        story.append(Paragraph(
+            f"Generated on {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC')} by TEAPEC Security Platform",
+            footer_style
+        ))
+        
+        doc.build(story)
+        buffer.seek(0)
+        return buffer.getvalue()
+        
+    except ImportError:
+        logger.error("ReportLab not installed. Cannot generate PDF reports.")
+        raise ValueError("PDF generation not available - ReportLab not installed")
+    except Exception as e:
+        logger.error(f"Failed to generate PDF report: {e}")
+        raise ValueError(f"PDF generation failed: {str(e)}")
+
+def generate_compliance_summary_report(framework: str, days: int, db: Session) -> Dict[str, Any]:
+    """Generate a summary report for a specific framework over a time period"""
+    from datetime import datetime, timedelta
+    from sqlalchemy import and_, func
+    
+    cutoff_date = datetime.utcnow() - timedelta(days=days)
+    
+    # Get all reports for this framework in the time period
+    reports = db.query(ComplianceReport).filter(
+        and_(
+            ComplianceReport.framework == framework,
+            ComplianceReport.created_at >= cutoff_date,
+            ComplianceReport.status == ReportStatus.COMPLETED
+        )
+    ).all()
+    
+    if not reports:
+        return {
+            "framework": framework,
+            "period_days": days,
+            "total_reports": 0,
+            "violations": 0,
+            "compliance_rate": 100.0,
+            "message": "No completed reports found for this period"
+        }
+    
+    total_reports = len(reports)
+    violations = sum(1 for r in reports if r.is_violation)
+    compliance_rate = ((total_reports - violations) / total_reports) * 100
+    
+    # Categorize violations by threat type
+    violation_by_threat = {}
+    for report in reports:
+        if report.is_violation and report.alert:
+            threat_type = report.alert.threat_type or 'Unknown'
+            violation_by_threat[threat_type] = violation_by_threat.get(threat_type, 0) + 1
+    
+    # Get severity distribution of violations
+    severity_distribution = {}
+    for report in reports:
+        if report.is_violation and report.alert:
+            severity = report.alert.severity or 'Unknown'
+            severity_distribution[severity] = severity_distribution.get(severity, 0) + 1
+    
+    # Recent violations
+    recent_violations = [
+        {
+            "report_id": r.id,
+            "alert_id": r.alert_id,
+            "threat_type": r.alert.threat_type if r.alert else None,
+            "severity": r.alert.severity if r.alert else None,
+            "created_at": r.created_at,
+            "summary": r.summary
+        }
+        for r in sorted(reports, key=lambda x: x.created_at, reverse=True)[:10]
+        if r.is_violation
+    ]
+    
+    return {
+        "framework": framework,
+        "period_days": days,
+        "analysis_period": {
+            "start_date": cutoff_date.isoformat(),
+            "end_date": datetime.utcnow().isoformat()
+        },
+        "summary": {
+            "total_reports": total_reports,
+            "violations": violations,
+            "compliant": total_reports - violations,
+            "compliance_rate": round(compliance_rate, 2)
+        },
+        "violation_analysis": {
+            "by_threat_type": violation_by_threat,
+            "by_severity": severity_distribution
+        },
+        "recent_violations": recent_violations,
+        "recommendations": get_framework_improvement_recommendations(framework, compliance_rate)
+    }
+
+def get_framework_improvement_recommendations(framework: str, compliance_rate: float) -> List[str]:
+    """Get improvement recommendations based on compliance rate"""
+    recommendations = []
+    
+    if compliance_rate < 70:
+        recommendations.extend([
+            f"Critical: {framework} compliance rate is below 70%. Immediate action required.",
+            "Review and strengthen security controls",
+            "Implement additional monitoring and alerting",
+            "Consider security awareness training for staff"
+        ])
+    elif compliance_rate < 85:
+        recommendations.extend([
+            f"Warning: {framework} compliance rate is below 85%. Improvement needed.",
+            "Review recent violations for patterns",
+            "Update security policies and procedures"
+        ])
+    elif compliance_rate < 95:
+        recommendations.extend([
+            f"Good: {framework} compliance rate is above 85% but could be improved.",
+            "Fine-tune security controls",
+            "Regular compliance audits recommended"
+        ])
+    else:
+        recommendations.extend([
+            f"Excellent: {framework} compliance rate is above 95%.",
+            "Maintain current security posture",
+            "Continue regular monitoring"
+        ])
+    
+    # Framework-specific recommendations
+    framework_specific = {
+        "GDPR": [
+            "Ensure data processing activities are documented",
+            "Regular privacy impact assessments",
+            "Staff training on data protection"
+        ],
+        "HIPAA": [
+            "Regular PHI access audits",
+            "Encryption of PHI at rest and in transit",
+            "Business associate agreements review"
+        ],
+        "PCI-DSS": [
+            "Regular vulnerability scans",
+            "Network segmentation review",
+            "Cardholder data environment monitoring"
+        ]
+    }
+    
+    if framework in framework_specific:
+        recommendations.extend(framework_specific[framework])
+    
+    return recommendations
+
 # Utility functions for testing and management
 def test_compliance_analysis(alert_id: int, framework: str, db: Session) -> Dict[str, Any]:
     """Test function for compliance analysis"""
@@ -477,7 +758,7 @@ def get_model_status() -> Dict[str, Any]:
         tokenizer_loaded = hasattr(compliance_analyzer, 'tokenizer') and compliance_analyzer.tokenizer is not None
         
         device = str(compliance_analyzer.model.device) if model_loaded else "Unknown"
-        model_name = "mistralai/Mistral-7B-Instruct-v0.2" if model_loaded else "Not loaded"
+        model_name = getattr(compliance_analyzer, 'model_name', 'Unknown') if model_loaded else "Not loaded"
         
         return {
             "model_loaded": model_loaded,

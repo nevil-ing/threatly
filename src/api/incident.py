@@ -1104,53 +1104,7 @@ async def create_slack_channel(
         "incident_id": incident_id
     }
 
-# ============= AUTOMATION ENDPOINTS =============
 
-@router.post("/{incident_id}/automate/containment")
-async def trigger_automated_containment(
-    incident_id: int,
-    containment_actions: List[str],
-    db: Session = Depends(get_db),
-   # current_user: dict = Depends(get_current_user)
-):
-    """Trigger automated containment actions"""
-    incident = IncidentService.get_incident(db, incident_id)
-    if not incident:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Incident not found"
-        )
-    
-    # Placeholder for automation integration
-    # In real implementation, you would trigger SOAR playbooks
-    
-    executed_actions = []
-    for action in containment_actions:
-        # Simulate action execution
-        executed_actions.append({
-            "action": action,
-            "status": "executed",
-            "timestamp": datetime.utcnow().isoformat()
-        })
-    
-    # Add timeline entry
-    timeline_data = IncidentTimelineCreate(
-        event_type="Automation",
-        description=f"Automated containment executed: {', '.join(containment_actions)}",
-        created_by=current_user.get("sub", "unknown"),
-        metadata={
-            "automation_type": "containment",
-            "actions": executed_actions
-        }
-    )
-    
-    IncidentService.add_timeline_entry(db, incident_id, timeline_data)
-    
-    return {
-        "message": "Automated containment triggered",
-        "executed_actions": executed_actions,
-        "incident_id": incident_id
-    }
 
 # ============= COMPLIANCE AND AUDIT =============
 

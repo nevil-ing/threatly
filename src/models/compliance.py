@@ -28,7 +28,8 @@ class ComplianceReport(Base):
     recommended_actions = Column(Text, nullable=True) # Actions suggested by the LLM
     
     # Timestamps
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=datetime.utcnow, index=True)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     completed_at = Column(DateTime, nullable=True) # When the analysis finished
     
     # Relationships
