@@ -239,7 +239,7 @@ Do not include any text before or after the JSON object. [/INST]
         
         # Strategy 1: Look for JSON block between curly braces
         json_patterns = [
-            r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}',  # Nested JSON
+            r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}',  
             r'\{.*?\}',  # Simple JSON (non-greedy)
             r'\{.*\}'    # Simple JSON (greedy)
         ]
