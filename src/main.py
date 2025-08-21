@@ -43,7 +43,7 @@ origins = [
     "http://127.0.0.1:3000",
     "http://152.53.44.111:3000",
     "http://152.53.44.111:3001",
-    "https://teapec.com"
+    "https://linda.teapec.com"
 ]
 
 app.add_middleware(
