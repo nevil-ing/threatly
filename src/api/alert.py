@@ -4,13 +4,13 @@ from sqlalchemy import desc, and_, func
 from src.core.database import get_db
 from src.models.alert import Alert
 from src.models.log import Log
-from src.schemas.alert import AlertResponse, AlertUpdate
+from src.schemas.alert import AlertResponse, AlertUpdate, PaginatedAlertResponse
 from typing import List, Optional
 from datetime import datetime, timedelta
 
 router = APIRouter()
 
-@router.get("/alerts/", response_model=List[AlertResponse], tags=["Alert"])
+@router.get("/alerts/", response_model=PaginatedAlertResponse, tags=["Alert"])
 async def get_alerts(
     skip: int = 0,
     limit: int = 100,
@@ -42,16 +42,24 @@ async def get_alerts(
         start_date = datetime.now() - timedelta(days=days)
         query = query.filter(Alert.created_at >= start_date)
     
-    # Order by creation date (newest first)
-    query = query.order_by(desc(Alert.created_at))
+    # Get total count before applying pagination
+    total_count = query.count()
     
+    # Order by creation date (newest first) and apply pagination
+    query = query.order_by(desc(Alert.created_at))
     db_alerts = query.offset(skip).limit(limit).all()
     
-    if not db_alerts:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Alert not found")
+    # Convert SQLAlchemy objects to Pydantic models explicitly
+    alert_responses = [AlertResponse.model_validate(alert) for alert in db_alerts]
     
-    return db_alerts
-
+    # Return structured response with pagination metadata
+    return PaginatedAlertResponse(
+        alerts=alert_responses,
+        total=total_count,
+        skip=skip,
+        limit=limit
+    )
+    
 @router.get("/alerts/{alert_id}", response_model=AlertResponse, tags=["Alert"])
 async def get_alert(alert_id: int, db: Session = Depends(get_db)):
     """Get a specific alert with full threat type details"""
@@ -61,77 +69,8 @@ async def get_alert(alert_id: int, db: Session = Depends(get_db)):
     if not db_alert:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Alert not found")
     
-    return db_alert
-
-@router.get("/alerts/threat-types/summary", tags=["Alert"])
-async def get_threat_type_summary(
-    days: int = Query(7, description="Number of days to look back"),
-    db: Session = Depends(get_db)
-):
-    """Get comprehensive summary of alerts by threat type"""
-    
-    start_date = datetime.now() - timedelta(days=days)
-    
-    # Get threat type distribution with severity breakdown
-    threat_summary = db.query(
-        Alert.threat_type,
-        Alert.severity,
-        func.count(Alert.id).label('count')
-    ).filter(
-        Alert.created_at >= start_date
-    ).group_by(Alert.threat_type, Alert.severity).all()
-    
-    # Organize data by threat type
-    threat_data = {}
-    for item in threat_summary:
-        if item.threat_type not in threat_data:
-            threat_data[item.threat_type] = {
-                'total_count': 0,
-                'severity_breakdown': {},
-                'latest_alert': None
-            }
-        
-        threat_data[item.threat_type]['total_count'] += item.count
-        threat_data[item.threat_type]['severity_breakdown'][item.severity] = item.count
-    
-    # Get latest alert for each threat type
-    for threat_type in threat_data.keys():
-        latest_alert = db.query(Alert).filter(
-            and_(
-                Alert.threat_type == threat_type,
-                Alert.created_at >= start_date
-            )
-        ).order_by(desc(Alert.created_at)).first()
-        
-        if latest_alert:
-            threat_data[threat_type]['latest_alert'] = {
-                'id': latest_alert.id,
-                'created_at': latest_alert.created_at.isoformat(),
-                'source_ip': latest_alert.source_ip,
-                'status': latest_alert.status
-            }
-    
-    # Get overall statistics
-    total_alerts = db.query(Alert).filter(Alert.created_at >= start_date).count()
-    open_alerts = db.query(Alert).filter(
-        and_(Alert.created_at >= start_date, Alert.status == "Open")
-    ).count()
-    
-    return {
-        "period_days": days,
-        "total_alerts": total_alerts,
-        "open_alerts": open_alerts,
-        "threat_types": [
-            {
-                "threat_type": threat_type,
-                "total_count": data['total_count'],
-                "severity_breakdown": data['severity_breakdown'],
-                "latest_alert": data['latest_alert']
-            }
-            for threat_type, data in sorted(threat_data.items(), key=lambda x: x[1]['total_count'], reverse=True)
-        ],
-        "generated_at": datetime.now().isoformat()
-    }
+    # Explicitly convert to Pydantic model
+    return AlertResponse.model_validate(db_alert)
 
 @router.get("/alerts/threat-types/{threat_type}", response_model=List[AlertResponse], tags=["Alert"])
 async def get_alerts_by_threat_type(
@@ -166,7 +105,8 @@ async def get_alerts_by_threat_type(
             detail=f"No alerts found for threat type: {threat_type}"
         )
     
-    return db_alerts
+    # Convert SQLAlchemy objects to Pydantic models
+    return [AlertResponse.model_validate(alert) for alert in db_alerts]
 
 @router.put("/alerts/{alert_id}/status", response_model=AlertResponse, tags=["Alert"])
 async def update_alert_status(
@@ -196,7 +136,8 @@ async def update_alert_status(
     try:
         db.commit()
         db.refresh(db_alert)
-        return db_alert
+        # Explicitly convert to Pydantic model
+        return AlertResponse.model_validate(db_alert)
     except Exception as e:
         db.rollback()
         raise HTTPException(

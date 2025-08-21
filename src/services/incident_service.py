@@ -348,7 +348,7 @@ class IncidentService:
         """Automatically create incident from high-severity alert"""
         try:
             # Only auto-create for high/critical severity threats
-            if alert.severity not in ["High", "Critical"]:
+            if alert.severity not in ["High", "Critical", "Medium"]:
                 return None
             
             # Check if alert is already linked to an incident

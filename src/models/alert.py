@@ -9,12 +9,12 @@ class Alert(Base):
     id = Column(Integer, primary_key=True, index=True)
     log_id = Column(Integer, ForeignKey("logs.id"), nullable=False)
     threat_type = Column(String(100), nullable=False, index=True)
-    severity = Column(String(20), nullable=False, index=True)  # Critical, High, Medium, Low
-    status = Column(String(20), default="Open", index=True)  # Open, Investigating, Resolved, False Positive
+    severity = Column(String(20), nullable=False, index=True)  
+    status = Column(String(20), default="Open", index=True)  
     description = Column(Text, nullable=False)
-    confidence_score = Column(String(10), nullable=True)  # Store as string for flexibility
-    matched_patterns = Column(Text, nullable=True)  # JSON string of matched patterns
-    source_ip = Column(String(45), nullable=True, index=True)  # IPv4/IPv6 support
+    confidence_score = Column(String(30), nullable=True)  
+    matched_patterns = Column(Text, nullable=True)  
+    source_ip = Column(String(45), nullable=True, index=True)  
     source_type = Column(String(50), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow, index=True)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -24,6 +24,8 @@ class Alert(Base):
     # Relationships
     log = relationship("Log", back_populates="alerts")
     incidents = relationship("Incident", secondary="incident_alerts", back_populates="alerts")
+    compliance = relationship("ComplianceReport", uselist=False, back_populates="alert")
+
     
     def __repr__(self):
         return f"<Alert(id={self.id}, threat_type='{self.threat_type}', severity='{self.severity}', status='{self.status}')>"

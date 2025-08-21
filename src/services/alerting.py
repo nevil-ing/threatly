@@ -6,6 +6,7 @@ from src.models.alert import Alert
 from src.models.log import Log
 from src.schemas.alert import AlertCreate
 from typing import Dict, Any
+from src.services.incident_service import IncidentService 
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
 
@@ -58,12 +59,13 @@ def trigger_alert(log_entry: Log, threat_classification: Dict[str, Any], db: Ses
         )
         
         db.add(db_alert)
-        db.commit()
-        db.refresh(db_alert)
+        db.flush() 
         
         logging.info(f"Alert {db_alert.id} created successfully for {threat_type} threat")
         logging.info(f"Alert Details - ID: {db_alert.id}, Severity: {severity}, Source IP: {log_entry.source_ip}")
         
+        logging.info(f"Attempting to promote alert {db_alert.id} to an incident...")
+        IncidentService.auto_create_from_alert(db, db_alert, created_by="system")
         # Log additional details for high severity alerts
         if severity in ["Critical", "High"]:
             logging.critical(f"HIGH SEVERITY ALERT: {threat_type} - Alert ID: {db_alert.id} - Immediate attention required!")

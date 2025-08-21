@@ -1,31 +1,36 @@
+# Updated docker-compose.yml with Mistral AI support
+version: '3.8'
+
 services:
   backend:
     build:
       context: .
       dockerfile: Dockerfile
     container_name: sentinel_xdr_backend
-    env_file:
-      - .env
+    restart: unless-stopped
+    env_file: .env
     ports:
       - "8000:8000"
     volumes:
-      - ./src:/app/src         # Keep for live code reloading of Python source
-      - ./alembic:/app/alembic # Keep for Alembic to see versions and generate new ones
-      # - ./scripts:/app/scripts # Can be removed if start.sh is replaced by direct command
+      - ./src:/app/src
+      - ./alembic:/app/alembic
+      # Cache volume for Hugging Face models
+      - hf_cache:/root/.cache/huggingface
     depends_on:
       db:
         condition: service_healthy
+      redis:
+        condition: service_healthy
     environment:
       - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
-    # Direct command to start uvicorn. Add --reload if you want it for development.
-    # Your Dockerfile's CMD ["./scripts/start.sh"] will be overridden by this.
-    command: ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
-    # If you still want to use start.sh (e.g., it has more logic):
-    # command: ["./scripts/start.sh"] # This would require scripts to be in the image (which they are via COPY . .)
+      - REDIS_URL=redis://redis:6379/0
+      - HUGGING_FACE_TOKEN=${HUGGING_FACE_TOKEN}
+    command: ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000"]
 
   db:
     image: postgres:15
     container_name: sentinel_xdr_postgres
+    restart: unless-stopped
     volumes:
       - postgres_data:/var/lib/postgresql/data/
     environment:
@@ -37,30 +42,126 @@ services:
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
       interval: 5s
-      timeout: 5s
+      timeout: 3s
       retries: 5
+      start_period: 15s
 
   migrate:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: sentinel_xdr_migrate # Name is fine, it's for one-off runs
-    env_file:
-      - .env
+    container_name: sentinel_xdr_migrate
+    env_file: .env
     volumes:
-      - ./src:/app/src         # Alembic needs to see your models
-      - ./alembic:/app/alembic # Alembic needs its configuration and to write version files
-      # - ./scripts:/app/scripts # No longer needed if command is direct
+      - ./src:/app/src
+      - ./alembic:/app/alembic
     depends_on:
       db:
         condition: service_healthy
     environment:
       - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
-    # Direct command to apply migrations
     command: ["alembic", "upgrade", "head"]
     profiles:
       - migration
 
+  redis:
+    image: redis:7-alpine
+    container_name: sentinel_xdr_redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    # Add persistence for Redis
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+
+  model-api:
+    build:
+      context: ./model_infer_api
+      dockerfile: Dockerfile
+    container_name: sentinel_xdr_model_api
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    volumes:
+      - hf_cache:/root/.cache/huggingface
+
+  arq_worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: sentinel_xdr_arq_worker
+    restart: unless-stopped
+    env_file: .env
+    volumes:
+      - ./src:/app/src
+      # Share Hugging Face cache with other services
+      - hf_cache:/root/.cache/huggingface
+    depends_on:
+      redis:
+        condition: service_healthy
+      db:
+        condition: service_healthy
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      - REDIS_URL=redis://redis:6379/0
+      - MODEL_API_URL=http://model-api:8080/infer
+      - HUGGING_FACE_TOKEN=${HUGGING_FACE_TOKEN}
+    # Optimized for 8GB ARM VPS - conservative memory limits
+    deploy:
+      resources:
+        limits:
+          memory: 2G  # Much lower limit for ARM VPS
+        reservations:
+          memory: 1G  # Conservative reservation
+    # Smaller shared memory for lightweight models
+    shm_size: 512mb
+    command: ["arq", "src.worker.WorkerSettings"]
+
+  # Optional: Add a compliance API service for direct testing (lightweight)
+  compliance-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: sentinel_xdr_compliance_api
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      - "8081:8081"
+    volumes:
+      - ./src:/app/src
+      - hf_cache:/root/.cache/huggingface
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      - REDIS_URL=redis://redis:6379/0
+      - HUGGING_FACE_TOKEN=${HUGGING_FACE_TOKEN}
+    # Conservative limits for 8GB ARM VPS
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+        reservations:
+          memory: 1G
+    shm_size: 512mb
+    command: ["python", "-m", "src.compliance_api"]
+    profiles:
+      - compliance
+
 volumes:
   postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  hf_cache:
     driver: local
