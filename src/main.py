@@ -40,9 +40,7 @@ app.middleware("http")(log_requests)
 
 origins = [
     "http://localhost:3000",
-    "http://127.0.0.1:3000",
     "http://152.53.44.111:3000",
-    "http://152.53.44.111:3001",
     "https://linda.teapec.com"
 ]
 
