@@ -41,15 +41,17 @@ app.middleware("http")(log_requests)
 origins = [
     "http://localhost:3000",
     "http://152.53.44.111:3000",
-    "https://linda.teapec.com"
+    "https://linda.teapec.com",
+    "https://api.teapec.com",
+    "http://api.teapec.com"  
 ]
-
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
+    expose_headers=["*"]
 )
 
 # Include routes
