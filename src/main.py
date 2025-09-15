@@ -10,6 +10,22 @@ def init_db():
 
 app = FastAPI(title="Sentinel XDR Backend API")
 app.middleware("http")(log_requests) 
+@app.on_event("startup")
+async def startup():
+    await admin_app.configure(
+        logo_url="https://fastapi.tiangolo.com/img/logo-margin/logo-teal.png",
+        providers=[
+            UsernamePasswordProvider(
+                admin_model=User, login_logo_url="", session_secret="supersecret"
+            )
+        ],
+        resources=[
+            Model(User),
+            Model(Log),
+            Model(Alert),
+            Model(IncidentResponse),
+        ],
+    )
 app.mount("/admin", admin_app)
 origins = [
     "http://localhost:3000",
