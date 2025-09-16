@@ -8,7 +8,7 @@ import uvicorn
 from src.api import auth, log, alert, incident, dashboard, health
 from src.middleware.logging_middleware import log_requests
 from src.models import User, Log, Alert, Incident
-from src.database import Base, engine 
+from src.core.database import Base, engine 
 
 # Import the admin app and its configuration components
 from fastadmin import fastapi_app as admin_app
