@@ -7,7 +7,7 @@ import uvicorn
 # Assume these imports are correct for your project structure
 from src.api import auth, log, alert, incident, dashboard, health
 from src.middleware.logging_middleware import log_requests
-from src.models import User, Log, Alert, IncidentResponse 
+from src.models import User, Log, Alert, Incident
 from src.database import Base, engine 
 
 # Import the admin app and its configuration components
