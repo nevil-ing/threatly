@@ -8,7 +8,7 @@ package-mode = false
 
 
 [tool.poetry.dependencies]
-python = "^3.13"
+python = "^3.10"
 
 # Core FastAPI and web framework
 fastapi = "^0.104.1"
@@ -63,6 +63,7 @@ numpy = "^1.24.0"
 # Add any other dependencies you currently have
 # (You can add them from your existing pyproject.toml)
 reportlab = "^4.4.3"
+fastadmin = {extras = ["fastapi", "sqlalchemy"], version = "^0.2.22"}
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^7.4.3"
