@@ -7,16 +7,14 @@ import uvicorn
 # Assume these imports are correct for your project structure
 from src.api import auth, log, alert, incident, dashboard, health
 from src.middleware.logging_middleware import log_requests
-from src.models import User, Log, Alert, IncidentResponse # You need to import your models
-from src.database import Base, engine # You need to import your db engine
+from src.models import User, Log, Alert, IncidentResponse 
+from src.database import Base, engine 
 
 # Import the admin app and its configuration components
 from fastadmin import fastapi_app as admin_app
 from fastadmin.providers.auth import UsernamePasswordProvider
 from fastadmin.resources import Model
 
-# --- START OF fastadmin CONFIGURATION ---
-# This setup is done once, when the file is loaded. Not in a startup event.
 
 admin_app.set_logo_url("https://fastapi.tiangolo.com/img/logo-margin/logo-teal.png")
 
