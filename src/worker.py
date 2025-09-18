@@ -11,6 +11,7 @@ from src.models import compliance
 from src.services.compliance_service import run_compliance_analysis_task
 from src.services.alerting import trigger_alert
 from src.services.threat_classifier import ThreatPatternClassifier
+from src.services.qdrant_service import QdrantAnomalyService
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -19,6 +20,7 @@ logger = logging.getLogger(__name__)
 # --- Singleton Pattern for helper classes (more efficient) ---
 # We load these once per worker process, not on every task.
 threat_classifier = ThreatPatternClassifier()
+qdrant_service = QdrantAnomalyService()  # Initialize Qdrant service
 http_session = requests.Session()
 MODEL_API_URL = os.getenv("MODEL_API_URL")
 
@@ -31,7 +33,7 @@ if not MODEL_API_URL:
 async def detect_anomaly_task(ctx, log_data: dict, log_id: int):
     """
     ARQ task to analyze a single log entry in real-time.
-    This function should execute immediately when a log is received.
+    Now includes Qdrant vector storage for detected anomalies.
     """
     start_time = ctx.get('job_start_time') if hasattr(ctx, 'get') else None
     logger.info(f"🚀 REAL-TIME DETECTION: Starting anomaly detection for log ID: {log_id}")
@@ -111,6 +113,28 @@ async def detect_anomaly_task(ctx, log_data: dict, log_id: int):
                 db.commit()
                 db.refresh(log_entry)
                 
+                # 🆕 STORE ANOMALY IN QDRANT VECTOR DATABASE
+                vector_stored = False
+                try:
+                    logger.info(f"📊 Storing anomaly {log_id} in Qdrant vector database")
+                    vector_stored = qdrant_service.store_anomaly(
+                        log_id=log_entry.id,
+                        log_data=log_entry.data,
+                        anomaly_score=anomaly_score,
+                        source_ip=log_entry.source_ip,
+                        source_type=log_entry.source_type,
+                        timestamp=log_entry.timestamp
+                    )
+                    
+                    if vector_stored:
+                        logger.info(f"✅ Successfully stored anomaly {log_id} in Qdrant")
+                    else:
+                        logger.error(f"❌ Failed to store anomaly {log_id} in Qdrant")
+                        
+                except Exception as vector_error:
+                    logger.error(f"❌ VECTOR DB ERROR: Failed to store anomaly {log_id} in Qdrant: {vector_error}")
+                    vector_stored = False
+                
                 # Trigger an alert immediately for real-time response
                 try:
                     alert = trigger_alert(log_entry=log_entry, threat_classification=threat_info, db=db)
@@ -124,7 +148,8 @@ async def detect_anomaly_task(ctx, log_data: dict, log_id: int):
                         "anomaly_score": anomaly_score,
                         "threat_type": threat_info.get("threat_type"),
                         "alert_id": alert.id,
-                        "is_anomaly": True
+                        "is_anomaly": True,
+                        "vector_stored": vector_stored  # Include vector storage status
                     }
                 except Exception as alert_error:
                     logger.error(f"❌ Failed to trigger alert for log {log_id}: {alert_error}")
@@ -132,7 +157,8 @@ async def detect_anomaly_task(ctx, log_data: dict, log_id: int):
                         "status": "threat_detected_no_alert",
                         "log_id": log_id,
                         "anomaly_score": anomaly_score,
-                        "is_anomaly": True
+                        "is_anomaly": True,
+                        "vector_stored": vector_stored
                     }
             else:
                 logger.info(f"✅ No threat detected for log ID {log_id}")
@@ -144,7 +170,8 @@ async def detect_anomaly_task(ctx, log_data: dict, log_id: int):
                     "status": "normal",
                     "log_id": log_id,
                     "anomaly_score": anomaly_score,
-                    "is_anomaly": False
+                    "is_anomaly": False,
+                    "vector_stored": False
                 }
 
         except requests.exceptions.Timeout:
@@ -180,8 +207,9 @@ async def detect_anomaly_task(ctx, log_data: dict, log_id: int):
 async def analyze_logs_batch_task(ctx, threshold: float = 0.5):
     """
     ARQ cron job to periodically analyze logs that haven't been scored yet.
+    Now includes batch storage of anomalies to Qdrant.
     """
-    logger.info("Starting batch analysis of unscored logs...")
+    logger.info("🔄 Starting batch analysis of unscored logs...")
     batch_size = 100
     
     db = next(get_db())
@@ -189,23 +217,182 @@ async def analyze_logs_batch_task(ctx, threshold: float = 0.5):
         unscored_logs = db.query(Log).filter(Log.anomaly_score.is_(None)).limit(batch_size).all()
         if not unscored_logs:
             logger.info("No unscored logs to analyze.")
-            return
+            return {"status": "no_logs_to_analyze", "processed": 0}
 
         logger.info(f"Found {len(unscored_logs)} unscored logs to analyze")
         
+        processed_count = 0
+        anomalies_found = 0
+        vector_stored_count = 0
+        
         for log in unscored_logs:
             try:
-                # We can call the single-log analysis task directly.
-                # This keeps logic centralized.
-                await detect_anomaly_task(ctx, log.data, log.id)
+                # Call the single-log analysis task directly
+                result = await detect_anomaly_task(ctx, log.data, log.id)
+                processed_count += 1
+                
+                # Track anomalies and vector storage
+                if result.get("is_anomaly"):
+                    anomalies_found += 1
+                    if result.get("vector_stored"):
+                        vector_stored_count += 1
+                        
             except Exception as e:
                 logger.error(f"Error analyzing log {log.id} in batch: {e}")
                 continue
             
-        logger.info(f"Finished batch analysis for {len(unscored_logs)} logs.")
+        logger.info(f"✅ Finished batch analysis: {processed_count} processed, "
+                   f"{anomalies_found} anomalies found, {vector_stored_count} stored in vector DB")
+        
+        return {
+            "status": "completed",
+            "processed_count": processed_count,
+            "anomalies_found": anomalies_found,
+            "vector_stored_count": vector_stored_count
+        }
+        
     finally:
         db.close()
+
+
+async def sync_missing_anomalies_to_vector_db(ctx):
+    """
+    🆕 NEW TASK: Sync anomalies that are in the database but missing from Qdrant.
+    Useful for recovery, maintenance, or initial setup.
+    """
+    logger.info("🔄 Starting sync of missing anomalies to Qdrant...")
+    
+    db = next(get_db())
+    try:
+        # Get all anomalies from database
+        anomalies = db.query(Log).filter(Log.is_anomaly == True).all()
         
+        if not anomalies:
+            logger.info("No anomalies found in database to sync")
+            return {"status": "no_anomalies", "synced_count": 0}
+        
+        logger.info(f"Found {len(anomalies)} anomalies in database, checking Qdrant...")
+        
+        synced_count = 0
+        already_exists_count = 0
+        failed_count = 0
+        
+        for anomaly in anomalies:
+            try:
+                # Check if anomaly already exists in Qdrant
+                existing = qdrant_service.get_anomaly_by_log_id(anomaly.id)
+                
+                if existing:
+                    already_exists_count += 1
+                    logger.debug(f"Anomaly {anomaly.id} already exists in Qdrant")
+                    continue
+                
+                # Store in Qdrant
+                success = qdrant_service.store_anomaly(
+                    log_id=anomaly.id,
+                    log_data=anomaly.data,
+                    anomaly_score=anomaly.anomaly_score or 0.0,
+                    source_ip=anomaly.source_ip,
+                    source_type=anomaly.source_type,
+                    timestamp=anomaly.timestamp
+                )
+                
+                if success:
+                    synced_count += 1
+                    logger.info(f"✅ Synced anomaly {anomaly.id} to Qdrant")
+                else:
+                    failed_count += 1
+                    logger.error(f"❌ Failed to sync anomaly {anomaly.id} to Qdrant")
+                    
+            except Exception as e:
+                logger.error(f"Error syncing anomaly {anomaly.id}: {e}")
+                failed_count += 1
+                continue
+        
+        logger.info(f"✅ Sync completed: {synced_count} synced, "
+                   f"{already_exists_count} already existed, {failed_count} failed")
+        
+        return {
+            "status": "completed",
+            "total_anomalies": len(anomalies),
+            "synced_count": synced_count,
+            "already_exists_count": already_exists_count,
+            "failed_count": failed_count
+        }
+        
+    except Exception as e:
+        logger.error(f"❌ Error in sync_missing_anomalies_to_vector_db: {e}")
+        return {"status": "error", "error": str(e)}
+    finally:
+        db.close()
+
+
+async def cleanup_old_vector_entries(ctx, days_old: int = 30):
+    """
+    🆕 NEW TASK: Cleanup old entries from vector database based on database state.
+    Removes vector entries for logs that are no longer anomalies or have been deleted.
+    """
+    logger.info(f"🧹 Starting cleanup of vector entries older than {days_old} days...")
+    
+    db = next(get_db())
+    try:
+        from datetime import datetime, timedelta
+        
+        # Get Qdrant collection stats first
+        collection_stats = qdrant_service.get_collection_stats()
+        initial_count = collection_stats.get('points_count', 0)
+        
+        if initial_count == 0:
+            logger.info("No entries in vector database to clean up")
+            return {"status": "no_entries", "cleaned_count": 0}
+        
+        logger.info(f"Vector database has {initial_count} entries, checking for cleanup...")
+        
+        # Get cutoff date
+        cutoff_date = datetime.now() - timedelta(days=days_old)
+        
+        # Get old logs that are no longer anomalies or have been deleted
+        old_non_anomalies = db.query(Log).filter(
+            Log.timestamp < cutoff_date,
+            Log.is_anomaly == False
+        ).all()
+        
+        # Also check for logs that have been deleted from the database
+        # by trying to retrieve each vector entry and checking if the log still exists
+        cleaned_count = 0
+        
+        # Clean up non-anomalies
+        for log in old_non_anomalies:
+            try:
+                success = qdrant_service.delete_anomaly(log.id)
+                if success:
+                    cleaned_count += 1
+                    logger.debug(f"Cleaned up non-anomaly {log.id} from vector DB")
+            except Exception as e:
+                logger.warning(f"Failed to clean up log {log.id}: {e}")
+                continue
+        
+        # Get final count
+        final_stats = qdrant_service.get_collection_stats()
+        final_count = final_stats.get('points_count', 0)
+        
+        logger.info(f"✅ Cleanup completed: {cleaned_count} entries cleaned, "
+                   f"vector DB size: {initial_count} -> {final_count}")
+        
+        return {
+            "status": "completed",
+            "initial_count": initial_count,
+            "final_count": final_count,
+            "cleaned_count": cleaned_count,
+            "days_old": days_old
+        }
+        
+    except Exception as e:
+        logger.error(f"❌ Error in cleanup_old_vector_entries: {e}")
+        return {"status": "error", "error": str(e)}
+    finally:
+        db.close()
+
 
 async def compliance_analysis_arq_task(ctx, report_id: int):
     """
@@ -303,14 +490,17 @@ async def retry_failed_compliance_reports(ctx):
 # ARQ Worker Configuration
 class WorkerSettings:
     """
-    Optimized ARQ worker configuration for real-time processing and compliance analysis
+    Optimized ARQ worker configuration for real-time processing, compliance analysis,
+    and vector database operations.
     """
     # List of functions that this worker can execute
     functions = [
         detect_anomaly_task, 
         analyze_logs_batch_task, 
         compliance_analysis_arq_task,
-        retry_failed_compliance_reports
+        retry_failed_compliance_reports,
+        sync_missing_anomalies_to_vector_db,  # 🆕 NEW
+        cleanup_old_vector_entries  # 🆕 NEW
     ]
     
     # Redis connection settings
@@ -333,5 +523,11 @@ class WorkerSettings:
         cron(retry_failed_compliance_reports, hour=None, minute=0),  # Every hour
         
         # Batch analysis of unscored logs every 15 minutes
-        cron(analyze_logs_batch_task, minute={0, 15, 30, 45})  # Every 15 minutes
+        cron(analyze_logs_batch_task, minute={0, 15, 30, 45}),  # Every 15 minutes
+        
+        # 🆕 NEW: Sync missing anomalies to vector DB every 6 hours
+        cron(sync_missing_anomalies_to_vector_db, hour={0, 6, 12, 18}, minute=0),
+        
+        # 🆕 NEW: Cleanup old vector entries daily at 2 AM
+        cron(cleanup_old_vector_entries, hour=2, minute=0),
     ]

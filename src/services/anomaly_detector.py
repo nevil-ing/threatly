@@ -18,8 +18,7 @@ class LogAnomalyDetector:
     [MODIFIED] Service to detect anomalies by calling a remote model inference API.
     This class no longer loads the heavy model itself.
     """
-    
-    # [MODIFIED] The __init__ method is now very cheap. It just sets up the API URL.
+   
     def __init__(self, model_api_url: str):
         """Initialize the anomaly detector with the URL of the model API."""
         if not model_api_url:
@@ -27,14 +26,10 @@ class LogAnomalyDetector:
         self.model_api_url = model_api_url
         self.session = requests.Session()  # Use a session for connection pooling
         
-        # [MODIFIED] Threat classifier is still initialized locally as it's lightweight.
+ 
         self.threat_classifier = ThreatPatternClassifier()
 
-        # [REMOVED] All heavyweight model and tokenizer loading is gone.
-        # self.device = ...
-        # self.tokenizer = ...
-        # self.model = ...
-
+     
     # This helper function is still useful and remains unchanged.
     def extract_log_message(self, log_data: Dict[str, Any]) -> str:
         """Extract the actual log message from the log data structure."""
@@ -46,8 +41,7 @@ class LogAnomalyDetector:
             elif 'data' in log_data and isinstance(log_data['data'], dict) and 'message' in log_data['data']:
                 return log_data['data']['message']
         return str(log_data)
-    
-    # [MODIFIED] The core of this method now calls the remote API instead of running the model.
+ 
     def detect_anomaly(self, log_data: Union[str, Dict[str, Any]], threshold=0.5, log_entry=None, db: Session=None) -> Dict[str, Any]:
         """Detect if a log entry is anomalous by calling the model API."""
         
@@ -70,9 +64,9 @@ class LogAnomalyDetector:
                 'threat_classification': {"threat_type": "Normal", "confidence": 1.0, "severity": "None", "details": "Empty log message"}
             }
         
-        # [NEW] This block replaces the entire torch/transformer inference logic.
+       
         try:
-            # Call the remote inference service.
+            
             response = self.session.post(self.model_api_url, json={"log_message": log_message}, timeout=10)
             response.raise_for_status()  # Raise an exception for HTTP error codes
             
@@ -86,7 +80,7 @@ class LogAnomalyDetector:
             is_anomaly = False
             anomaly_prob = 0.0
         
-        # [REMOVED] The entire 'with torch.no_grad():' block is now gone.
+        
 
         # The rest of the logic for classification and alerting remains the same,
         # but it now uses the 'is_anomaly' and 'anomaly_prob' from the API call.
@@ -143,8 +137,7 @@ class LogAnomalyDetector:
         # ... (code unchanged)
         return super().get_threat_statistics(db, days)
 
-# [NEW] Singleton pattern to create the detector instance only once per worker.
-# This avoids creating new request sessions for every task.
+
 anomaly_detector_instance = None
 
 def get_anomaly_detector():
@@ -163,43 +156,5 @@ def get_anomaly_detector():
 
 
 
-@celery_app.task
-def detect_anomaly_task(log_data: dict, log_id: int):
-    detector = get_anomaly_detector()  # Get the shared, lightweight instance.
 
-    with next(get_db()) as db:
-        log_entry = db.query(Log).filter(Log.id == log_id).first()
-        if log_entry:
-            
-            detector.detect_anomaly(
-                log_data=log_data,
-                log_entry=log_entry,
-                db=db
-            )
 
-@celery_app.task
-def analyze_logs_batch_task(threshold: float):
-    detector = get_anomaly_detector() 
-    
-    batch_size = 100
-    offset = 0
-    
-    with next(get_db()) as db:
-        while True:
-            logs = db.query(Log).filter(Log.anomaly_score.is_(None)).limit(batch_size).offset(offset).all()
-            if not logs:
-                break
-                
-            for log in logs:
-                try:
-                    detector.detect_anomaly(
-                        log_data=log.data,
-                        log_entry=log,
-                        db=db,
-                        threshold=threshold
-                    )
-                except Exception as e:
-                    logging.error(f"Error analyzing log {log.id}: {e}")
-
-            db.commit() 
-            offset += batch_size

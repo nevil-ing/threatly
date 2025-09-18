@@ -42,16 +42,7 @@ try:
     from fastadmin import fastapi_app as admin_app, UsernamePasswordProvider, Model
     logger.info("Successfully imported fastadmin")
 except ImportError:
-    try:
-        from fastapi_admin.app import app as admin_app
-        from fastapi_admin.providers.login import UsernamePasswordProvider
-        from fastapi_admin.resources import Model
-        logger.info("Successfully imported fastapi_admin")
-    except ImportError as e:
-        logger.warning(f"Admin panel not available: {e}")
-        admin_app = None
-
-def init_db():
+   def init_db():
     """Initialize database tables"""
     try:
         Base.metadata.create_all(bind=engine)
