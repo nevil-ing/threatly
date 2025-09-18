@@ -26,7 +26,7 @@ arq = "^0.25.0"
 
 # AI/ML libraries optimized for ARM - CPU versions only
 torch = "^2.1.0+cpu"
-transformers = "^4.51.3"
+transformers = "^4.35.2"
 tokenizers = "^0.15.0"
 # Lightweight alternatives for ARM
 sentence-transformers = "^2.2.2"
