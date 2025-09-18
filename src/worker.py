@@ -7,8 +7,8 @@ from arq.connections import RedisSettings
 from sqlalchemy.orm import Session
 from src.core.database import get_db, SessionLocal
 from src.models import Log, Alert
-from src.models import compliance 
-from src.services.compliance_service import run_compliance_analysis_task
+#from src.models import compliance 
+#from src.services.compliance_service import run_compliance_analysis_task
 from src.services.alerting import trigger_alert
 from src.services.threat_classifier import ThreatPatternClassifier
 from src.services.qdrant_service import QdrantAnomalyService
@@ -393,7 +393,7 @@ async def cleanup_old_vector_entries(ctx, days_old: int = 30):
     finally:
         db.close()
 
-
+'''
 async def compliance_analysis_arq_task(ctx, report_id: int):
     """
     ARQ wrapper for the synchronous compliance analysis service function.
@@ -485,7 +485,7 @@ async def retry_failed_compliance_reports(ctx):
         return {"status": "error", "error": str(e)}
     finally:
         db.close()
-
+'''
 
 # ARQ Worker Configuration
 class WorkerSettings:
@@ -497,8 +497,8 @@ class WorkerSettings:
     functions = [
         detect_anomaly_task, 
         analyze_logs_batch_task, 
-        compliance_analysis_arq_task,
-        retry_failed_compliance_reports,
+        #compliance_analysis_arq_task,
+        #$retry_failed_compliance_reports,
         sync_missing_anomalies_to_vector_db,  # 🆕 NEW
         cleanup_old_vector_entries  # 🆕 NEW
     ]

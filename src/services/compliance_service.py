@@ -1,3 +1,5 @@
+
+'''
 # src/services/compliance_service.py
 import re
 import json
@@ -774,3 +776,5 @@ def get_model_status() -> Dict[str, Any]:
             "model_loaded": False,
             "status": "error"
         }
+        
+        '''
