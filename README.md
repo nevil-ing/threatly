@@ -1,6 +1,6 @@
-# teapec-backend
+# Threatly
 
-A FastAPI backend for the Sentinel XDR project, featuring log processing, anomaly detection, and incident response.
+A FastAPI backend practice project for the linda xdr project, featuring log processing, anomaly detection, and incident response.
 
 ### Prerequisites
 - Docker & Docker Compose
