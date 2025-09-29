@@ -63,7 +63,7 @@ async def detect_anomaly_task(ctx, log_data: dict, log_id: int):
             log_message = str(log_data)
         
         if not log_message or log_message.strip() == '':
-            logger.warning(f"⚠️ Empty log message for log ID {log_id}, marking as normal")
+            logger.warning(f"Empty log message for log ID {log_id}, marking as normal")
             log_entry.anomaly_score = 0.0
             log_entry.is_anomaly = False
             log_entry.threat_type = "Normal"
